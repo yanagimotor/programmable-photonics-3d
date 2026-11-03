@@ -1,0 +1,276 @@
+/* One screen: the 3D table fills the window, the presentation buttons run along the bottom, the story (caption,
+   tour button, small print) floats at the bottom left, and the panel about the chip in focus slides in on the
+   right.  Dark look, deliberately single-theme (a kiosk screen; the 3D view is dark anyway). */
+:root {
+  --bg: #0b0f14;
+  --panel: rgba(15, 21, 28, 0.9);
+  --panel-solid: #11171e;
+  --line: #27323e;
+  --line-2: #3a4756;
+  --text: #eef2f6;
+  --muted: #9fabb8;
+  --accent: #8fd3ff;          /* interface accent: hover, focus, the halo around a chip */
+  --green: #3fd65a;
+  --gold: #e3b94d;
+  --s: 1;                     /* UI scale: 1 on a desk, larger on a kiosk screen (?kiosk=1 or ?scale=) */
+  --font: "Segoe UI", "Yu Gothic UI", "Meiryo", system-ui, -apple-system, "Hiragino Sans", sans-serif;
+  --panel-w: min(calc(400px * var(--s)), 34vw);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); overflow: hidden; }
+html[lang="ja"] body { line-break: strict; }
+html[lang="ja"] #caption, html[lang="ja"] .note, html[lang="ja"] #panel p, html[lang="ja"] .sub { word-break: auto-phrase; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+#app { display: grid; grid-template-rows: minmax(0, 1fr) auto; height: 100vh; height: 100dvh; }
+#stage { position: relative; overflow: hidden; min-height: 0; background: var(--bg); touch-action: none; font-size: calc(15px * var(--s)); }
+#stage canvas { display: block; }
+
+/* ---------------------------------------------------------------- labels in the 3D view */
+.label-layer { font-size: calc(13px * var(--s)); }
+.chiplbl { pointer-events: auto; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; color: #fff; background: rgba(11, 15, 20, 0.78);
+  border: 1px solid rgba(255,255,255,0.16); border-radius: 999px; padding: 4px 11px 4px 9px; white-space: nowrap; font-size: calc(13.5px * var(--s)); font-weight: 600; letter-spacing: 0.01em;
+  transition: border-color 0.15s, background 0.15s; }
+.chiplbl i { width: 9px; height: 9px; border-radius: 50%; background: var(--cat, #9fb3c8); box-shadow: 0 0 8px var(--cat, #9fb3c8); flex: none; }
+.chiplbl:hover, .chiplbl:focus-visible { border-color: var(--accent); background: rgba(20, 32, 44, 0.92); }
+.callout { pointer-events: none; transform: translateY(-50%); }
+.callout span { display: block; position: relative; transform: translate(0, calc(-100% - 22px)); color: #fff; background: rgba(11, 15, 20, 0.84);
+  border: 1px solid rgba(143, 211, 255, 0.45); border-radius: 7px; padding: 3px 9px; white-space: nowrap; font-size: calc(13px * var(--s)); font-weight: 500; }
+.callout span::after { content: ""; position: absolute; left: 50%; top: 100%; width: 1px; height: 22px; background: rgba(143, 211, 255, 0.65); }
+.callout::before { content: ""; position: absolute; left: 50%; top: 50%; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+/* a tag hanging below its point (the leader goes up) */
+.callout.below span { transform: translate(0, 22px); }
+.callout.below span::after { top: auto; bottom: 100%; }
+.culled { visibility: hidden; }
+
+/* ---------------------------------------------------------------- top bar */
+#topbar { position: absolute; top: 0; left: 0; right: 0; z-index: 6; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 14px 18px; pointer-events: none; }
+#brand { pointer-events: auto; text-shadow: 0 1px 3px rgba(0,0,0,0.9); }
+#brand h1 { margin: 0; font-size: calc(22px * var(--s)); font-weight: 650; letter-spacing: 0.005em; text-wrap: balance; }
+#brand .sub { margin: 4px 0 0; color: var(--text); font-weight: 600; font-size: calc(14.5px * var(--s)); max-width: 52ch; text-wrap: balance; }
+/* a chip in focus: its kind of job is in the caption; the tab's subtitle would only crowd its plates */
+body[data-focus]:not([data-focus=""]) #brand .sub { visibility: hidden; }
+#viewbtns { display: flex; gap: 6px; pointer-events: auto; flex-wrap: wrap; justify-content: flex-end; }
+.vbtn { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 11px; cursor: pointer; font-size: calc(13px * var(--s)); }
+.vbtn:hover { border-color: var(--line-2); }
+.vbtn[aria-pressed="true"] { border-color: #2f5f7a; color: #d4efff; }
+.vbtn.lang { font-weight: 600; }
+
+/* ---------------------------------------------------------------- the story (bottom left) */
+#stage::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 34%; background: linear-gradient(to bottom, rgba(11,15,20,0) 0%, rgba(11,15,20,0.5) 60%, rgba(11,15,20,0.78) 100%); pointer-events: none; z-index: 3; }
+#story { position: absolute; left: 18px; bottom: 16px; z-index: 4; width: min(660px, 56vw); display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+#story > * { pointer-events: auto; }
+#caption { margin: 0; font-size: calc(20px * var(--s)); line-height: 1.4; font-weight: 500; text-shadow: 0 1px 2px rgba(0,0,0,0.9), 0 0 14px rgba(0,0,0,0.9); text-wrap: pretty; }
+#caption:empty { display: none; }
+#caption b { color: #d4efff; font-weight: 650; }
+#caption .num { color: var(--gold); font-variant-numeric: tabular-nums; }
+.note { margin: 0; font-size: calc(12.5px * var(--s)); color: var(--muted); line-height: 1.45; text-shadow: 0 1px 2px #000; max-width: 74ch; }
+.note:empty { display: none; }
+#controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+#controls:empty { display: none; }
+.cbtn { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 9px 14px; cursor: pointer; font-size: calc(15px * var(--s)); min-height: 42px; }
+.cbtn:hover { border-color: var(--line-2); }
+.cbtn[aria-pressed="true"], .cbtn.on { border-color: var(--accent); background: rgba(143, 211, 255, 0.13); color: #e3f5ff; }
+.cbtn.primary { background: var(--accent); color: #061320; border-color: var(--accent); font-weight: 650; }
+.cbtn.primary:hover { filter: brightness(1.07); }
+/* a button that makes a colour (the colour converter's): a dot of that colour, as the catalog's dots (app.js, c.rgb) */
+.cbtn .dot { display: inline-block; width: calc(10px * var(--s)); height: calc(10px * var(--s)); margin-right: calc(8px * var(--s)); border-radius: 50%; vertical-align: -1px; background: var(--dot); box-shadow: 0 0 8px var(--dot); }
+.tourhint { font-size: calc(13px * var(--s)); color: var(--muted); font-variant-numeric: tabular-nums; }
+.legendrow { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 300px; }
+/* the chip in focus (no panel): its kind of job, its name, one sentence; controls and the way back */
+.fhead { display: inline-flex; align-items: center; gap: 7px; font-size: calc(12.5px * var(--s)); font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--cat); }
+html[lang="ja"] .fhead { letter-spacing: 0.02em; }
+.fhead i { width: 9px; height: 9px; border-radius: 50%; background: var(--cat); box-shadow: 0 0 8px var(--cat); }
+.fname { display: block; margin: 3px 0 4px; font-size: calc(30px * var(--s)); line-height: 1.15; font-weight: 700; letter-spacing: 0.005em; text-wrap: balance; }
+.fwhat { display: block; font-size: calc(18px * var(--s)); line-height: 1.4; font-weight: 500; max-width: 70ch; text-wrap: balance; }
+html[lang="ja"] .fwhat { max-width: 30em; }
+.frow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; width: 100%; }
+.frow .glabel { font-size: calc(14px * var(--s)); color: var(--text); text-shadow: 0 1px 2px #000; margin-right: 2px; }
+.frow input[type="range"] { flex: 0 1 220px; accent-color: var(--accent); }
+.frow .val { font-variant-numeric: tabular-nums; min-width: 4.5ch; font-weight: 600; text-shadow: 0 1px 2px #000; }
+.frow .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.frow.nav .cbtn { min-height: 38px; padding: 7px 13px; font-size: calc(14px * var(--s)); }
+.frow.fnav { gap: 6px; }
+.navbtn { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; min-width: calc(40px * var(--s)); height: calc(40px * var(--s)); padding: 0 calc(12px * var(--s));
+  cursor: pointer; font-size: calc(18px * var(--s)); line-height: 1; text-shadow: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
+.navbtn:hover { border-color: var(--line-2); }
+.navbtn.back { font-size: calc(13.5px * var(--s)); font-weight: 600; }
+.legend { display: inline-flex; align-items: center; gap: 7px; background: rgba(11, 15, 20, 0.62); border: 1px solid var(--line); border-radius: 999px;
+  padding: 4px 11px 4px 9px; font-size: calc(13px * var(--s)); cursor: pointer; }
+.legend i { width: 9px; height: 9px; border-radius: 50%; background: var(--cat); box-shadow: 0 0 7px var(--cat); }
+.legend:hover, .legend[aria-pressed="true"] { border-color: var(--cat); }
+
+/* ---------------------------------------------------------------- the panel about the chip in focus */
+#panel { position: absolute; z-index: 5; top: calc(76px * var(--s)); right: 16px; bottom: 16px; width: var(--panel-w);
+  display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; backdrop-filter: blur(8px);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.45); transform: translateX(0); transition: transform 0.35s ease, opacity 0.35s ease; }
+#panel.closing { transform: translateX(30px); opacity: 0; }
+.p-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 12px 14px 0; }
+.p-cat { display: inline-flex; align-items: center; gap: 7px; font-size: calc(12.5px * var(--s)); font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cat, var(--muted)); }
+html[lang="ja"] .p-cat { letter-spacing: 0.02em; }
+.p-cat i { width: 9px; height: 9px; border-radius: 50%; background: var(--cat, #9fb3c8); box-shadow: 0 0 8px var(--cat, #9fb3c8); }
+.p-back { background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: calc(13px * var(--s)); color: var(--muted); }
+.p-back:hover { color: var(--text); border-color: var(--line-2); }
+.p-body { flex: 1 1 auto; overflow-y: auto; padding: 6px 16px 10px; scrollbar-width: thin; }
+#p-name { margin: 4px 0 2px; font-size: calc(25px * var(--s)); line-height: 1.2; font-weight: 700; text-wrap: balance; }
+.p-tech { margin: 0 0 10px; color: var(--muted); font-size: calc(13px * var(--s)); }
+.p-what { margin: 0 0 12px; font-size: calc(17px * var(--s)); line-height: 1.42; font-weight: 500; text-wrap: pretty; }
+.p-io { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: stretch; margin: 0 0 14px; }
+.p-io .io { background: rgba(255,255,255,0.04); border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; font-size: calc(13.5px * var(--s)); line-height: 1.35; }
+.p-io .io b { display: block; font-size: calc(11px * var(--s)); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+html[lang="ja"] .p-io .io b { letter-spacing: 0.02em; }
+.io-arrow { align-self: center; width: 22px; height: 2px; background: var(--muted); position: relative; }
+.io-arrow::after { content: ""; position: absolute; right: -1px; top: -4px; border: 5px solid transparent; border-left: 7px solid var(--muted); border-right: none; }
+#panel section { margin: 0 0 12px; }
+#panel h3 { margin: 0 0 4px; font-size: calc(12px * var(--s)); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+html[lang="ja"] #panel h3 { letter-spacing: 0.02em; }
+#panel section p { margin: 0; font-size: calc(14.5px * var(--s)); line-height: 1.5; text-wrap: pretty; }
+.p-fixedbox { border-left: 3px solid var(--gold); padding: 2px 0 2px 10px; }
+.p-fixedbox h3 { color: var(--gold) !important; }
+.p-try { background: rgba(143, 211, 255, 0.06); border: 1px solid rgba(143, 211, 255, 0.22); border-radius: 12px; padding: 9px 10px; }
+.p-controls { display: flex; flex-direction: column; gap: 8px; }
+.p-controls .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.p-controls .glabel { font-size: calc(13px * var(--s)); color: var(--muted); margin-right: 4px; }
+.p-controls .cbtn { padding: 7px 12px; min-height: 38px; font-size: calc(14px * var(--s)); }
+.p-controls input[type="range"] { flex: 1 1 140px; accent-color: var(--accent); }
+.p-controls .val { font-variant-numeric: tabular-nums; min-width: 4.5ch; text-align: right; font-weight: 600; }
+.p-ref { margin: 4px 0 0; font-size: calc(12px * var(--s)); color: var(--muted); line-height: 1.45; }
+.p-ref:empty { display: none; }
+.p-note { margin: 6px 0 0; font-size: calc(12px * var(--s)); color: var(--muted); line-height: 1.45; font-style: italic; }
+.p-note:empty { display: none; }
+.p-nav { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); }
+.p-nav button { background: var(--panel-solid); border: 1px solid var(--line); border-radius: 9px; padding: 7px 12px; cursor: pointer; font-size: calc(13.5px * var(--s)); }
+.p-nav button:hover { border-color: var(--line-2); }
+.p-count { color: var(--muted); font-size: calc(13px * var(--s)); font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- tab 2: the program catalog (right) */
+#catalog { position: absolute; z-index: 5; top: calc(76px * var(--s)); right: 16px; width: min(calc(300px * var(--s)), 27vw);
+  max-height: calc(100% - 76px * var(--s) - 16px); overflow-y: auto; scrollbar-width: thin;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 12px 10px; backdrop-filter: blur(8px); box-shadow: 0 10px 40px rgba(0,0,0,0.45); }
+#catalog h2 { margin: 0; font-size: calc(17px * var(--s)); font-weight: 700; display: flex; align-items: center; gap: 8px; }
+#catalog h2::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: #3fff6a; box-shadow: 0 0 10px #3fff6a; }
+.cat-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.prog { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 9px; text-align: left; width: 100%;
+  background: #141b23; border: 1px solid var(--line); border-radius: 10px; padding: 10px 11px; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+.prog:hover { border-color: var(--line-2); }
+.prog[aria-pressed="true"] { border-color: #3fff6a; background: rgba(63, 255, 106, 0.1); box-shadow: 0 0 0 1px rgba(63,255,106,0.35) inset; }
+.prog i { width: 10px; height: 10px; border-radius: 50%; background: var(--cat); box-shadow: 0 0 8px var(--cat); }
+.prog .pname { font-size: calc(15px * var(--s)); font-weight: 600; line-height: 1.2; }
+.prog .psub { display: block; margin-top: 2px; font-size: calc(12.5px * var(--s)); font-weight: 500; color: var(--muted); }
+/* tab 3: a long name breaks into even lines ("In situ inverse design / and error correction", not one word alone) */
+.prog.app .pname { text-wrap: balance; }
+@media (max-width: 600px) { .prog .psub { display: none; } }
+/* "No program": an unlit ring, and a neutral (not green) mark when chosen - no light reaches the chip */
+.prog.none { margin-bottom: 4px; }
+.prog.none i { box-sizing: border-box; background: transparent; border: 2px solid var(--muted); box-shadow: none; }
+.prog.none .pname { color: var(--muted); font-weight: 500; }
+.prog.none[aria-pressed="true"] { border-color: #c3cad2; background: rgba(195, 202, 210, 0.1); box-shadow: 0 0 0 1px rgba(195, 202, 210, 0.3) inset; }
+.prog.none[aria-pressed="true"] .pname { color: var(--text); }
+.callout.program span { border-color: rgba(63, 255, 106, 0.75); color: #dcffe4; }
+.callout.program span::after { background: rgba(63, 255, 106, 0.8); }
+.callout.program::before { background: #3fff6a; box-shadow: 0 0 8px #3fff6a; }
+html.kiosk #catalog { width: min(calc(300px * var(--s)), 25vw); }
+/* tabs 2 and 3: the story stays at the bottom left, as on tab 1 (the camera fits the scene above it: table.js) */
+body[data-tab="prog"] #stage::after, body[data-tab="apps"] #stage::after { height: 24%; }
+/* tab 3: the GPU's name in hot orange, once it is hot (cold, it is the neutral callout: orange means heat) */
+.callout.gpu span { border-color: rgba(255, 128, 64, 0.8); color: #ffe4d8; }
+.callout.gpu span::after { background: rgba(255, 128, 64, 0.8); }
+.callout.gpu::before { background: #ff7a3c; box-shadow: 0 0 8px #ff7a3c; }
+/* tab 3: the light going in and out (yellow-white, as the pulses), the feedback (gold) */
+.callout.light span { border-color: rgba(255, 228, 160, 0.8); color: #fff6df; }
+.callout.light span::after { background: rgba(255, 228, 160, 0.8); }
+.callout.light::before { background: #ffe7a6; box-shadow: 0 0 8px #ffe7a6; }
+.callout.answer span { font-size: calc(24px * var(--s, 1)); font-weight: 800; padding: 2px 12px; }
+/* a vowel: lighter, so that its "o" keeps an open hole (at 800 it read as a dot) */
+.callout.answer.letter span { font-weight: 600; }
+/* tab 3: a tag beside its point, to the right (the answer by the chip's lit exit: above it, it stood over the other
+   exits of the column) */
+.callout.side span { transform: translate(calc(50% + 24px), 0); }
+.callout.side span::after { left: auto; right: 100%; top: 50%; width: 24px; height: 1px; }
+.callout.feedback span { border-color: rgba(255, 204, 77, 0.85); color: #ffefc4; }
+.callout.feedback span::after { background: rgba(255, 204, 77, 0.85); }
+.callout.feedback::before { background: #ffcc4d; box-shadow: 0 0 8px #ffcc4d; }
+.callout.quantum span { border-color: rgba(115, 242, 255, 0.85); color: #dffbff; }
+.callout.quantum span::after { background: rgba(115, 242, 255, 0.85); }
+.callout.quantum::before { background: #73f2ff; box-shadow: 0 0 8px #73f2ff; }
+.callout.pump span { border-color: rgba(120, 140, 255, 0.85); color: #e2e6ff; }
+.callout.pump span::after { background: rgba(120, 140, 255, 0.85); }
+.callout.pump::before { background: #7a8cff; box-shadow: 0 0 8px #7a8cff; }
+.callout.twins span { border-color: rgba(255, 110, 95, 0.85); color: #ffe2de; }
+.callout.twins span::after { background: rgba(255, 110, 95, 0.85); }
+.callout.twins::before { background: #ff6e5f; box-shadow: 0 0 8px #ff6e5f; }
+/* phones: the catalog is one row of pills along the bottom of the view, scrolling sideways; the story sits above it */
+@media (max-width: 600px) {
+  #catalog { top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; max-height: none; padding: 6px; border-radius: 12px; overflow-x: auto; overflow-y: hidden; }
+  #catalog h2 { display: none; }
+  .cat-list { flex-direction: row; gap: 6px; margin-top: 0; }
+  .prog { width: auto; flex: none; padding: 7px 11px; gap: 7px; }
+  .prog .pname { font-size: 13px; white-space: nowrap; }
+  .prog.none { margin-bottom: 0; }
+  body[data-tab="prog"] #story, body[data-tab="apps"] #story { bottom: 60px; }
+  /* tab 3 on a phone: Japanese captions with proportional kana and punctuation, so that each sentence keeps to one
+     line on phones whose fonts draw kana full width (two lines for two sentences, as in kiosk mode) */
+  html[lang="ja"] body[data-tab="apps"] #caption { font-feature-settings: "palt"; }
+  /* (an application with two buttons of its own - the in situ story: with the tour on, the countdown would wrap the
+     row onto a second line over the view; "Stop the tour" says enough) */
+  body[data-tab="apps"] .frow:has(> .row + .row) > #tourhint { display: none; }
+}
+
+/* ---------------------------------------------------------------- the presentation buttons */
+/* three equal tabs across the whole width, the icon beside the name (the keys 1-3 still work, unlabelled) */
+#modes { display: flex; gap: 8px; padding: 8px 18px 10px; background: var(--panel-solid); border-top: 1px solid var(--line); }
+.mode { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 12px; padding: calc(9px * var(--s)) 12px; border-radius: 12px; border: 1px solid var(--line); background: #141b23; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+.mode:hover { border-color: var(--line-2); }
+.mode[aria-pressed="true"] { border-color: var(--accent); background: rgba(143, 211, 255, 0.18); }
+.mode .ico { width: calc(32px * var(--s)); height: calc(32px * var(--s)); display: block; flex: none; }
+.mode .ico * { vector-effect: non-scaling-stroke; }
+.mode .mname { font-size: calc(15px * var(--s)); font-weight: 600; line-height: 1.2; word-break: keep-all; }   /* (Japanese: wraps only where i18n.js marks it, WB) */
+.mode .mkey { display: none; }
+
+/* ---------------------------------------------------------------- loading and errors */
+#loading { position: absolute; inset: 0; display: grid; place-items: center; background: var(--bg); z-index: 20; gap: 10px; color: var(--muted); }
+#loading span { white-space: pre-line; text-align: center; padding: 0 20px; }
+.spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid #223; border-top-color: var(--accent); animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loadmsg { max-width: 60ch; color: var(--text); line-height: 1.5; }
+#fallback, .nojs { padding: 30px; color: var(--text); }
+#errlog { position: fixed; left: 0; bottom: 0; max-height: 30vh; overflow: auto; margin: 0; padding: 8px; background: #300; color: #fcc; font-size: 12px; z-index: 100; white-space: pre-wrap; }
+
+/* ---------------------------------------------------------------- kiosk */
+html.kiosk { --s: 1.45; --panel-w: min(calc(400px * var(--s)), 31vw); }
+/* the idle loop's invitation to touch, bottom right (only while nobody uses the screen) */
+.invite { position: absolute; right: 18px; bottom: 16px; z-index: 4; padding: calc(10px * var(--s)) calc(18px * var(--s)); border-radius: 999px;
+  background: rgba(143, 211, 255, 0.16); border: 1px solid var(--accent); color: var(--text); font-size: calc(16px * var(--s)); font-weight: 600;
+  pointer-events: none; animation: invite 2.4s ease-in-out infinite; }
+@keyframes invite { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .invite { animation: none; } }
+html.kiosk #story { width: min(820px, 52vw); }
+
+/* ---------------------------------------------------------------- narrow screens */
+@media (max-width: 900px) {
+  :root { --panel-w: min(360px, 46vw); }
+  #story { width: calc(100vw - 36px); }
+  #brand .sub { display: none; }
+  #panel { top: calc(64px * var(--s)); }
+}
+@media (max-width: 600px) {
+  #stage { font-size: 13px; }
+  :root { --panel-w: calc(100vw - 20px); }
+  #panel { top: auto; height: 58%; right: 10px; bottom: 10px; }
+  #caption { font-size: 16px; }
+  #story { left: 10px; bottom: 10px; width: calc(100vw - 20px); }
+  #topbar { padding: 10px; }
+  #brand h1 { font-size: 17px; }
+  #modes { gap: 6px; padding: 6px 8px 8px; }
+  .mode { flex-direction: column; gap: 4px; padding: 6px 4px; }
+  .mode .ico { width: 24px; height: 24px; }
+  .mode .mname { font-size: 12px; text-align: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation: none; }
+  #panel { transition: none; }
+}

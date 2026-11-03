@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Software written with light</title>
+<meta name="description" content="Interactive 3D: a photonic chip whose circuit is written with light, so one chip can do many jobs. Today's chips, the programmable chip, its applications and how it works, in English and Japanese.">
+<meta name="theme-color" content="#0b0f14">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230b0f14'/%3E%3Cpath d='M8 40h48' stroke='%23ff3b30' stroke-width='5'/%3E%3Cpath d='M14 18v18M24 18v18M34 18v18M44 18v18' stroke='%233fd65a' stroke-width='5'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="./css/app.css?v=ac0772e8">
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three-0.186.1/build/three.module.js",
+    "three/addons/": "./vendor/three-0.186.1/examples/jsm/"
+  }
+}
+</script>
+<script type="module" src="./js-f4ac4d97/main.js"></script>
+</head>
+<body>
+<div id="app">
+  <main id="stage" aria-label="3D view of the chips" data-i18n-aria="aria.stage">
+    <header id="topbar">
+      <div id="brand">
+        <h1 data-i18n="title">Software written with light</h1>
+        <p class="sub" id="tabsub"></p>
+      </div>
+      <div id="viewbtns">
+        <button type="button" id="btn-labels" class="vbtn" aria-pressed="true" data-i18n="btn.labels">Labels</button>
+        <button type="button" id="btn-reset" class="vbtn" data-i18n="btn.reset">Reset view</button>
+        <button type="button" id="btn-lang" class="vbtn lang">日本語</button>
+      </div>
+    </header>
+
+    <aside id="panel" aria-labelledby="p-name" data-i18n-aria="aria.panel" hidden>
+      <div class="p-head">
+        <span class="p-cat"><i></i><span></span></span>
+        <button type="button" class="p-back" id="p-back"><span aria-hidden="true">←</span> <span data-i18n="panel.back">All chips</span></button>
+      </div>
+      <div class="p-body">
+        <h2 id="p-name"></h2>
+        <p class="p-tech"></p>
+        <p class="p-what"></p>
+        <div class="p-io">
+          <div class="io in"><b data-i18n="panel.in">In</b><span></span></div>
+          <div class="io-arrow" aria-hidden="true"></div>
+          <div class="io out"><b data-i18n="panel.out">Out</b><span></span></div>
+        </div>
+        <section class="p-try" hidden>
+          <h3 data-i18n="panel.try">Try it</h3>
+          <div class="p-controls"></div>
+        </section>
+        <section><h3 data-i18n="panel.how">How it works</h3><p class="p-how"></p></section>
+        <section><h3 data-i18n="panel.use">Where it is used</h3><p class="p-use"></p></section>
+        <section class="p-fixedbox"><h3 data-i18n="panel.fixed">Made for this one job</h3><p class="p-fixed"></p></section>
+        <p class="p-ref"></p>
+        <p class="p-note"></p>
+      </div>
+      <nav class="p-nav">
+        <button type="button" class="p-prev" id="p-prev"><span aria-hidden="true">‹</span> <span data-i18n="panel.prev">Previous chip</span></button>
+        <span class="p-count"></span>
+        <button type="button" class="p-next" id="p-next"><span data-i18n="panel.next">Next chip</span> <span aria-hidden="true">›</span></button>
+      </nav>
+    </aside>
+
+    <aside id="catalog" aria-labelledby="cat-title" hidden>
+      <h2 id="cat-title" data-i18n="cat.title">Programs</h2>
+      <div class="cat-list"></div>
+    </aside>
+
+    <section id="story" aria-live="polite">
+      <p id="caption"></p>
+      <div id="controls"></div>
+      <p id="note" class="note"></p>
+    </section>
+
+    <div id="loading"><div class="spinner"></div><span data-i18n="loading">Loading the 3D view…</span></div>
+  </main>
+
+  <nav id="modes" aria-label="Presentations" data-i18n-aria="aria.modes"></nav>
+</div>
+
+<div id="fallback" hidden>
+  <p data-i18n="noWebGL">This page needs WebGL 2. Please open it in a recent version of Edge, Chrome, Firefox or Safari.</p>
+</div>
+<noscript><p class="nojs">This page needs JavaScript.</p></noscript>
+<pre id="errlog" hidden></pre>
+<script>
+// Classic script: still runs when the module scripts cannot (file:// pages, a missing module).
+(function () {
+  var q = location.search, ja = /lang=ja/.test(q) || (/kiosk/.test(q) && !/lang=en/.test(q));
+  function show(en, jp) {
+    var s = document.querySelector('#loading span');
+    var sp = document.querySelector('#loading .spinner');
+    if (!s || document.body.getAttribute('data-ready')) return;
+    if (sp) sp.style.display = 'none';
+    s.textContent = ja ? jp + '\n' + en : en + '\n' + jp;
+    s.className = 'loadmsg';
+  }
+  if (location.protocol === 'file:') {
+    show('This page has to be opened through a small local web server: double-click “View-locally.bat”, next to the “docs” folder.',
+         'このページはローカルのWebサーバー経由で開く必要があります。「docs」フォルダと同じ場所にある「View-locally.bat」をダブルクリックしてください。');
+  } else {
+    setTimeout(function () {
+      if (!window.__app) show('The 3D view could not start. Please reload the page.',
+                              '3D表示を開始できませんでした。ページを再読み込みしてください。');
+    }, 60000);     // a first visit over a slow connection loads about 1.1 MB of scripts and data
+  }
+})();
+</script>
+</body>
+</html>
