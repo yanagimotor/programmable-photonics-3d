@@ -8,6 +8,7 @@
 //
 //   const how = new How({ scene, lang, reduced })   its group stands at the table's centre (hidden until enter())
 //   how.enter() / how.leave();  how.go(i), how.next(), how.prev();  how.step (0..STEPS-1), how.t (seconds in it)
+//   how.hold (set by app.js: the visitor steps by hand) - a step left alone shows its change again and again
 //   how.caption (the key of the step's caption);  how.view (the camera: target, elev, az, dist, box)
 //   how.update(dt, t, camera, pointScale);  how.setLabelText(words);  how.allLabels()
 import * as THREE from 'three';
@@ -28,6 +29,11 @@ const GREEN = 0x3fff6a, GOLD = 0xffd34d, CHANGED = 0x8f2a22;
 const ease = k => (k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k));
 // the pattern of light: a straight line (m = 0), or an S-bend (m = 1), as z(x)
 const pathZ = (x, m) => m * 1.5 * (2 * ease((x + 3.2) / 6.4) - 1);
+// stepping by hand (RY, 2026-11-13: a step left alone keeps explaining itself): from LOOP_AT seconds into a step, every
+// LOOP_P seconds the step's own change is undone for LOOP_OFF seconds (smoothly: the layers stack again, the voltage or
+// the light goes off, the field draws back, the written stripe fades, the signal stops, the S-bend straightens), then
+// it comes again as when the step began
+const LOOP_AT = 7, LOOP_P = 8, LOOP_OFF = 2.2;
 
 export class How {
   constructor({ scene, lang, reduced = false }) {
@@ -37,7 +43,7 @@ export class How {
     scene.add(this.group);
     this.kit = makeKit({ lang, reduced, seed: 2027 });
     this.group.add(this.kit.group);
-    this.step = 0; this.t = 0;
+    this.step = 0; this.t = 0; this.hold = false;
     this.k = { explode: 0, volt: 0, proj: 0, pc: 0, field: 0, change: 0, signal: 0, morph: 0 };   // shown, 0..1
     this.labels = {};
     this.words = k => k;
@@ -231,15 +237,20 @@ export class How {
     this.t += raw;
     const s = this.step, T = this.t, k = this.k, sp = this.reduced ? 3 : 1;
     const toward = (key, target, rate) => { k[key] += (target - k[key]) * Math.min(1, raw * rate * sp); };
-    // what each step shows (each step keeps what the ones before it built)
-    if (s === 0) k.explode = Math.min(1, k.explode + raw * sp / 1.8); else k.explode = 1;
-    toward('volt', s >= 1 ? 1 : 0, 3);
-    toward('proj', s >= 2 ? 1 : 0, 2.5);
-    toward('pc', s >= 2 && (s > 2 || T > 0.9) ? 1 : 0, 2.5);
-    toward('field', s >= 3 && (s > 3 || T > 0.6) ? 1 : 0, 1.6);
-    toward('change', s >= 4 && (s > 4 || T > 0.8) ? 1 : 0, 1.2);
-    toward('signal', s >= 5 ? 1 : 0, 2);
-    const mT = s === 6 ? ease((T - 1.0) / 2.6) : 0;
+    // what each step shows (each step keeps what the ones before it built).  Tn: seconds since the step's own change
+    // last began - its clock, or stepping by hand round LOOP_P (below 0: the change undone for a moment)
+    let Tn = T;
+    if (this.hold && T >= LOOP_AT) { const u = (T - LOOP_AT) % LOOP_P; Tn = u < LOOP_OFF ? -1 : u - LOOP_OFF; }
+    const own = (j, delay = 0) => s > j || (s === j && Tn >= delay);
+    if (s === 0) k.explode = Tn >= 0 ? Math.min(1, k.explode + raw * sp / 1.8) : Math.max(0, k.explode - raw * sp / 1.2); else k.explode = 1;
+    toward('volt', own(1) ? 1 : 0, 3);
+    toward('proj', own(2) ? 1 : 0, 2.5);
+    toward('pc', own(2, 0.9) ? 1 : 0, 2.5);
+    toward('field', own(3, 0.6) ? 1 : 0, 1.6);
+    toward('change', own(4, 0.8) ? 1 : 0, 1.2);
+    toward('signal', own(5) ? 1 : 0, 2);
+    // (the new pattern drawn from the straight line into the S-bend; undone, back to the straight line)
+    const mT = s !== 6 ? 0 : Tn >= 0 ? ease((Tn - 1.0) / 2.6) : Math.max(0, k.morph - raw * sp / 1.0);
     if (Math.abs(mT - k.morph) > 0.004) { k.morph = mT; this.drawMask(mT); }
     const e = ease(k.explode), m = k.morph;
     // the layers

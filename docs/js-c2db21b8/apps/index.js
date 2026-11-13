@@ -14,11 +14,17 @@
 //   apps.caption        the key of the caption (a scene may change it as its story goes on)
 //   apps.current        the scene: { controls, act(id), value(id) } for the buttons under the caption
 //   apps.renderMask(renderer) before the frame;  apps.allLabels() for the label culling
+//   apps.hold           stepping by hand (auto-play off; app.js sets it every frame): each part of the story waits at
+//                       its end for Next
+//   apps.parts, apps.partIndex   the story's parts and the one shown (or asked for);  apps.next() / apps.prev():
+//                       Next, Back (false at the last / first part: app.js then opens the next application)
 //
 // A scene module exports create(ctx) -> { program, view, caption, update(dt, t, camera, pointScale, raw), enter(),
-// leave(), controls, act, value }.  ctx: { THREE, kit (its own kit, etched style), group, bench, y, reduced, quality,
-// lang, chipAt, label(key, cls) -> { obj, el, at(x, y, z), show(on), set(key) }, anchor(name) -> world position of the
-// program's anchor (null until the program is built), words() -> the current translation function }.
+// leave(), controls, act, value, parts, step, waiting, goOn(), go(part) }.  ctx: { THREE, kit (its own kit, etched
+// style), group, bench, y, reduced, quality, lang, chipAt, label(key, cls) -> { obj, el, at(x, y, z), show(on),
+// set(key) }, anchor(name) -> world position of the program's anchor (null until the program is built), words() -> the
+// current translation function, hold() -> apps.hold }.  Stepping by hand, a scene whose part has run its course stops
+// that part's clock and waits (waiting); goOn() lets it go on as the story would; go(part) poses a part at once.
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { makeKit } from '../kit/index.js';
@@ -50,6 +56,7 @@ export class Apps {
     this.group.visible = false;
     scene.add(this.group);
     this.words = k => k;
+    this.hold = true;
     // (the light computer, programs/compute.js, left tab 3 and is off the page: still in the folder, and
     // devcheck still checks it)
     const catalog = [{ id: 'image', opts: compute.APP_LIGHT }, { id: 'voice', opts: compute.APP_LIGHT }, 'wdm', 'qsource']
@@ -69,6 +76,7 @@ export class Apps {
         label: (key, cls = 'callout') => this.addLabel(rec, key, cls),
         anchor: name => this.anchor(rec, name),
         words: () => this.words,
+        hold: () => this.hold,
       };
       try { rec.inst = SCENES[a.id].create(ctx); }
       catch (e) { window.dispatchEvent(new ErrorEvent('error', { message: `application ${a.id}: ${e && (e.stack || e.message) || e}` })); rec.inst = null; }
@@ -81,6 +89,23 @@ export class Apps {
   get view() { const s = this.current; return (s && s.view) || { target: [-2, 2, 0.6], elev: 28, dist: 30, lift: -0.04 }; }
   get viewKey() { const v = this.view; return `${this.selected}:${v.serial || 0}`; }
   get caption() { const s = this.current; return (s && (typeof s.caption === 'function' ? s.caption() : s.caption)) || `app.${this.selected}.cap`; }
+  // stepping through the story: its parts, and the one shown (or asked for: go() may pose a part a few frames later)
+  get parts() { const s = this.current; return (s && s.parts) || []; }
+  get partIndex() { const s = this.current; return s && s.parts ? s.parts.indexOf(s.step) : -1; }
+  // Next: a part that has run its course goes on as the story would; one still running gives way to the next part at
+  // once.  Back: the part before, from its start.  (false at the last / first part)
+  next() {
+    const s = this.current, i = this.partIndex;
+    if (!s || i < 0 || i >= s.parts.length - 1) return false;
+    if (s.waiting) s.goOn(); else s.go(s.parts[i + 1]);
+    return true;
+  }
+  prev() {
+    const s = this.current, i = this.partIndex;
+    if (!s || i <= 0) return false;
+    s.go(s.parts[i - 1]);
+    return true;
+  }
 
   addLabel(rec, key, cls) {
     const el = document.createElement('div');

@@ -56,8 +56,9 @@
 //   heats up, the lens does not.
 //
 // The scene (apps/index.js): create(ctx) -> { program: null, view, caption, controls ("From the start"), act, value,
-// state, go(part), enter, leave, update }.  The story's clock runs on real time (raw).  go(part) poses everything at
-// once as at the start of that part (tests, screenshots, the button); the story itself only moves forward.
+// state, go(part), enter, leave, update, parts, step, waiting, goOn }.  The story's clock runs on real time (raw).
+// go(part) poses everything at once as at the start of that part (tests, screenshots, the buttons, Back); the story
+// itself only moves forward.  Stepping by hand (auto-play off, ctx.hold()), each part waits at its end for goOn().
 //   state: { part, t, glasses, sharp, gpu, busy, morph, flat, input, output, passed, cold, answer, bars, exits, stage,
 //   program, phase, label, rest, bubbles, glassOn }
 //   (parts 1-3: input - the animal going in or on the card ('dog', 'cat', ...), output - the animal last come out
@@ -142,6 +143,13 @@ const P5 = { flat: [0.2, 2.5], solid: [2.5, 3.1], back: [1.8, 2.6], fold: [2.8, 
 const UNROLL = 3.9, STAG = 0.06, FLY = 0.45, T_LIGHT = 6.4;
 // a new input on the chip (parts 5-7): its wavefront stands up (0.3 s), and sinks as its light goes in
 const RISE = 0.3, SINK0 = 0.5, SINK1 = 1.0;
+// stepping by hand (RY, 2026-11-13: a step left alone keeps explaining itself), a part that has run its course goes
+// round: its clock runs on, and what it shows follows the part's window [a, b) of it, again and again - part 1 the
+// next dog through the cold GPU, part 3 the animals through the lens, part 4 the digits 7, 4, 0, part 5 the chip
+// reading the card's digits one after another (FLAT_GAP: the card turns to the next digit, the last one's light fades);
+// part 2's stream simply goes on, and parts 6 and 7 go on reading a new digit or vowel (its answer shown IN_SHOW s)
+const FLAT_GAP = 3.4, IN_SHOW = 2.2, IN_MAX = 10;
+const WINDOW = { gpu: [0, 6.0], optics: [OPT.t0, OPT.t0 + OPT.n * OPT.dt], super: [T_DIGIT[0], 2 * T_DIGIT[2] - T_DIGIT[1]], flat: [FLAT_GAP, DUR.flat] };
 // the cameras (table.fitView; az from +z towards +x).  G: the GPU in the middle, its belt at both sides; O: the card,
 // the glasses and the screen, with the hot GPU's right part and its thermometer at the side; S: the super glass and
 // the column of spots, with the hot GPU's near half and its thermometer at the side; C: the chip from above the front -
@@ -378,15 +386,29 @@ export function create(ctx) {
   // waveOf that input, cardT when the card last changed and cardOf its digit)
   const st = { part: 'gpu', t: 0, serial: 0, view: null, viewTall: null, loop: false, once: 0, runT: -1, lightT: -1, switchT: -1, askT: -1,
     waveT: -1, waveOf: null, cardT: -1, cardOf: 3, sharp: 0, glasses: 0, morph: 0, flat: 0,
-    input: 'dog', output: null, passed: 0, answer: null, bars: 0, exits: 0, label: null, lang: '', vowel: '', doneT: -1 };
+    input: 'dog', output: null, passed: 0, answer: null, bars: 0, exits: 0, label: null, lang: '', vowel: '', doneT: -1,
+    waiting: false, go: false, waitT: 0, loopN: 0, inT: -1, ansT: -1, inAsk: null, flatCyc: 0, flatTest: 3, flatPrev: 3, beltT: null, from: null };
   const glowNow = new Float32Array(10);
   const once = bit => { if (st.once & bit) return false; st.once |= bit; return true; };
+  // stepping by hand (auto-play off: ctx.hold()), a part that has run its course stays (waiting) and goes round (see
+  // WINDOW) until Next (goOn); with auto-play the story goes on by itself
+  const onward = () => { if (!ctx.hold() || st.go) return true; if (!st.waiting) st.waitT = st.t; st.waiting = true; return false; };
+  // what the part shows at its clock t: as it is, or - stepping by hand, past its window's end - round its window again
+  // (st.loopN: how many times it has come round)
+  const shown = (part, t) => {
+    const w = ctx.hold() && WINDOW[part];
+    if (!w || t < w[1]) { st.loopN = 0; return t; }
+    const L = w[1] - w[0], u = t - w[1];
+    st.loopN = 1 + Math.floor(u / L);
+    return w[0] + (u % L);
+  };
   // the story moves on (smoothly: the bench and the GPU go on from where they are).  (The answer and the label go with
   // the part they belong to: the next part sets its own on its first frame - a frame waited on "part 5 and answer 0"
   // and caught part 4's 0.)
   const advance = (part, loop = false) => {
     if (VIEW_OF[part] !== VIEW_OF[st.part] || loop) st.serial++;
-    st.part = part; st.t = loop ? -LOOP : 0; st.loop = loop; st.once = 0;
+    st.part = part; st.t = loop ? -LOOP : 0; st.loop = loop; st.once = 0; st.waiting = st.go = false;
+    st.loopN = 0; st.inT = st.ansT = -1; st.inAsk = null; st.flatCyc = 0;
     st.runT = st.lightT = st.switchT = st.askT = st.waveT = st.cardT = st.doneT = -1; st.waveOf = null; st.stale = undefined; st.rest = null;
     st.answer = null; st.label = null;
     if (part === 'gpu' && loop) { bench.load(null); for (const l of labels) l.show(false); }
@@ -402,6 +424,8 @@ export function create(ctx) {
     // (the state as at the start of that part at once, before the next frame recomputes it: a test polling it must
     // not see the part before)
     st.answer = null; st.label = null; st.output = null; st.passed = 0; st.sharp = 0;
+    // (posed: each part from the state the story leaves it in - not from where the part before went round to)
+    st.from = null; st.beltT = null; st.flatTest = st.flatPrev = 3;
     st.input = part === 'gpu' || part === 'optics' ? 'dog' : part === 'stream' ? 'cat' : part === 'flat' || part === 'program' ? '0' : '7';
     st.bars = part === 'program' || part === 'rewrite' ? 784 : 0; st.exits = st.bars ? 10 : 0;
     if (PARTS.indexOf(part) <= PARTS.indexOf('flat')) {
@@ -451,12 +475,18 @@ export function create(ctx) {
     const b = beltNow;
     b.inp = null; b.out = null; b.passed = 0; b.sharp = 0;
     const S = part === 'gpu' ? 0 : steps(t);
-    for (let j = 0; j < ANIMALS.length; j++) {
+    // (stepping by hand the stream never runs dry: the eight animals come round again, one after another)
+    const endless = part === 'stream' && ctx.hold();
+    const j0 = endless ? Math.max(0, Math.floor(S) - 3) : 0, j1 = endless ? Math.floor(S) + 2 : ANIMALS.length - 1;
+    for (let j = j0; j <= j1; j++) {
       const p = part === 'gpu' ? (j === 0 ? dogP(t) : -9) : j === 0 ? Math.max(2, S) : S - j;
-      if (p >= 1.75) { b.passed++; if (p < 2.6) { b.out = ANIMALS[j]; if (p <= 2.3) b.sharp = 1; } }
-      if (p >= -0.3 && p < 0.75) b.inp = ANIMALS[j];
-      if (p > -2 && p < 2.6) beltPose(j % cards.BELT, j, p, fade);
+      const a = j % ANIMALS.length;
+      if (p >= 1.75) { b.passed++; if (p < 2.6) { b.out = ANIMALS[a]; if (p <= 2.3) b.sharp = 1; } }
+      if (p >= -0.3 && p < 0.75) b.inp = ANIMALS[a];
+      if (p > -2 && p < 2.6) beltPose(j % cards.BELT, a, p, fade);
     }
+    // (part 1 come round: the dog that came out sharp goes on and fades while the next blurry one comes in)
+    if (part === 'gpu' && st.loopN > 0 && t < 1.0) beltPose(1, 0, 2 + 0.7 * sm(t / 0.9), fade);
     return b;
   };
   const hideOptics = () => {
@@ -471,6 +501,7 @@ export function create(ctx) {
   const gpuParts = (part, t) => {
     hideOptics();
     const b = belt(part, t, 1);
+    if (part === 'stream') st.beltT = t;                 // (where the stream stood, for part 3 to fade it from there)
     st.input = b.inp; st.output = b.out; st.passed = b.passed; st.sharp = b.sharp;
     st.glasses = 0; st.morph = 0; st.flat = 0; st.answer = null; st.bars = 0; st.exits = 0;
     show.cold = false; show.copy = false;
@@ -478,8 +509,12 @@ export function create(ctx) {
   };
 
   // ------------------------------------------------ part 3: the same animals through the lens
+  const fromOpt = { k: OPT.n - 1, a: 1, sa: 1, light: 1 };
   const optics = t => {
-    belt('stream', DUR.stream, 1 - ramp(t, 0, 0.5));
+    // (stepping by hand the part goes round: the last animal's turn ends as the others' do, and the first one's begins
+    // as the others' do; the stream fades from where it stood)
+    const held = ctx.hold(), round = st.loopN > 0;
+    belt('stream', held && st.beltT != null ? st.beltT : DUR.stream, 1 - ramp(t, 0, 0.5));
     // the stage comes in while the camera flies over: the card and the screen, the glasses coming down
     const stage = sm(ramp(t, 0.5, 1.2)), drop = ramp(t, 0.6, 1.6);
     glass.fade(sm(ramp(t, 0.6, 1.0))); glass.drop(drop); glass.specs(1); glass.shape(0, 0); glass.veins(0);
@@ -489,18 +524,21 @@ export function create(ctx) {
     // one's stays on: part 4 fades it) and draws it sharp on the screen; card, light and screen go out together at the
     // turn's end, so that the two pictures always show the same animal
     const k = Math.max(0, Math.min(OPT.n - 1, Math.floor((t - OPT.t0) / OPT.dt)));
-    const tk = t - (OPT.t0 + k * OPT.dt), last = k === OPT.n - 1;
+    const tk = t - (OPT.t0 + k * OPT.dt), last = k === OPT.n - 1 && !held;
     const end = last ? 1 : 1 - ramp(tk, OPT.dt - 0.15, OPT.dt);
-    const a = (k === 0 ? sm(ramp(t, 0.8, 1.3)) : ramp(tk, 0, 0.15)) * end;
+    const a = (k === 0 && !round ? sm(ramp(t, 0.8, 1.3)) : ramp(tk, 0, 0.15)) * end;
     cards.cardPose(0);
     cards.animal(k);
     cards.look({ sharp: 0, sound: 0, animal: a, back: stage });
     for (let i = 0; i < OPT.n; i++) {
       const r = lightA[i], s0 = OPT.t0 + i * OPT.dt;
-      r.level = t < s0 ? 0 : i === OPT.n - 1 ? 1 : 1 - ramp(t, s0 + OPT.dt - 0.15, s0 + OPT.dt);
+      r.level = t < s0 ? 0 : i === OPT.n - 1 && !held ? 1 : 1 - ramp(t, s0 + OPT.dt - 0.15, s0 + OPT.dt);
       r.front = sm(ramp(t, s0 + 0.05, s0 + 0.55));
     }
     const sa = t < OPT.t0 ? 0 : sm(ramp(tk, OPT.land, OPT.land + 0.25)) * end;
+    // (what part 4 takes over: this animal on the card and the screen, and its light, as they are now)
+    fromOpt.k = k; fromOpt.a = a; fromOpt.sa = sa; fromOpt.light = lightA[k].level;
+    st.from = fromOpt;
     cards.screenAnimal(k);
     cards.screen({ back: stage, animal: sa });
     cards.board({ on: 0, glow: null, lit: -1 });
@@ -523,31 +561,39 @@ export function create(ctx) {
     st.glasses = 1; st.morph = morph; st.flat = 0;
     // the hand-over: the last animal's light fades, the card turns from that animal to the 7 (sharp: a handwritten
     // digit for the super glass to read), the screen's animal fades, and the screen gives way to the column of spots
-    lightsOff(); lightA[OPT.n - 1].level = 1 - ramp(t, 0, 0.4);
+    // (from the animal part 3 showed when it ended - its last one, or the one it had come round to)
+    const fr = st.from || fromOpt, k0 = st.from ? fr.k : OPT.n - 1;
+    lightsOff(); lightA[k0].level = (st.from ? fr.light : 1) * (1 - ramp(t, 0, 0.4));
     const out = 1 - sm(ramp(t, 0.4, 0.8)), col = sm(ramp(t, 2.0, 3.0));
-    cards.screenAnimal(OPT.n - 1);
-    cards.screen({ back: 1 - col, animal: out });
+    cards.screenAnimal(k0);
+    cards.screen({ back: 1 - col, animal: out * (st.from ? fr.sa : 1) });
     st.sharp = 1;
-    // the card: the digits, sharp (each digit's turn: a quick fade to the next)
+    // the card: the digits, sharp (each digit's turn: a quick fade to the next).  Come round (stepping by hand), the
+    // 0 gives way to the 7 as each digit to the next
+    const round = st.loopN > 0, LAST = TESTS.length - 1;
     cards.cardPose(0);
-    let cardSharp = sm(ramp(t, 0.4, 0.8)), test = 17;
-    for (let d = 1; d < TESTS.length; d++) {
+    let cardSharp = sm(ramp(t, 0.4, 0.8)), test = round && t < T_DIGIT[0] + FADE / 2 ? TESTS[LAST] : TESTS[0];
+    for (let d = round ? 0 : 1; d < TESTS.length; d++) {
       if (t >= T_DIGIT[d] && t < T_DIGIT[d] + FADE) cardSharp *= Math.abs(1 - 2 * ramp(t, T_DIGIT[d], T_DIGIT[d] + FADE));
       if (t >= T_DIGIT[d] + FADE / 2) test = TESTS[d];
     }
     cards.show(test);
-    cards.animal(OPT.n - 1);
-    cards.look({ animal: out, sharp: cardSharp, sound: 0, back: 1 });
+    cards.animal(k0);
+    cards.look({ animal: out * (st.from ? fr.a : 1), sharp: cardSharp, sound: 0, back: 1 });
     st.input = NAME[test]; st.output = null; st.passed = 0;
+    st.flatTest = st.flatPrev = test;                  // (the digit part 5 starts from)
     // each digit's light, and the spots
     glowNow.fill(0);
     let lit = -1;
     for (let d = 0; d < SETS.length; d++) {
       const S = SETS[d], r = S.rays;
-      const t0 = T_DIGIT[d] + (d ? FADE : 0), next = T_DIGIT[d + 1] ?? Infinity;
-      const level = t < T_DIGIT[d] ? 0 : t < next ? 1 : 1 - ramp(t, next, next + FADE);
-      r.level = level; r.front = sm(ramp(t, t0, t0 + RUN));
-      const g = sm(ramp(t, t0 + RUN - 0.1, t0 + RUN - 0.1 + GLOW)) * level;
+      const t0 = T_DIGIT[d] + (d || round ? FADE : 0), next = T_DIGIT[d + 1] ?? Infinity;
+      let level = t < T_DIGIT[d] ? 0 : t < next ? 1 : 1 - ramp(t, next, next + FADE);
+      let front = sm(ramp(t, t0, t0 + RUN));
+      let g = sm(ramp(t, t0 + RUN - 0.1, t0 + RUN - 0.1 + GLOW)) * level;
+      // (come round: the 0's light, on since the round before, fades as the 7's turn begins)
+      if (round && d === LAST && t < T_DIGIT[0] + FADE) { level = 1 - ramp(t, T_DIGIT[0], T_DIGIT[0] + FADE); front = 1; g = level; }
+      r.level = level; r.front = front;
       if (g > 0) for (let c = 0; c < 10; c++) glowNow[c] += g * S.glow[c];
       if (g > 0.5 && t < next) lit = S.ans;
     }
@@ -601,26 +647,38 @@ export function create(ctx) {
   // the chip
   const flat = t => {
     cards.beltHide();
-    const f = sm(ramp(t, P5.flat[0], P5.flat[1])), solid = sm(ramp(t, P5.solid[0], P5.solid[1]));
+    // (come round, stepping by hand: the glass, the chip, the column and the card stay as the first round left them
+    // (ts); only the reading goes round - the card turns to the next digit while the last one's light fades (from
+    // FLAT_GAP), its rows peel off into the wavefront, its light runs through the chip)
+    const round = st.loopN > 0, ts = round ? DUR.flat : t;
+    if (st.flatCyc !== st.loopN) {
+      st.flatCyc = st.loopN;
+      st.flatPrev = st.flatTest; st.flatTest = TESTS[(TESTS.indexOf(st.flatTest) + 1) % TESTS.length];
+      st.once &= ~1; st.askT = -1;
+    }
+    const f = sm(ramp(ts, P5.flat[0], P5.flat[1])), solid = sm(ramp(ts, P5.solid[0], P5.solid[1]));
     glass.drop(1); glass.specs(0); glass.shape(1, f);
     glass.veins(1 - solid); glass.fade(1 - solid);
     st.morph = 1; st.flat = f; st.glasses = 1; st.sharp = 1;
     lightsOff();
-    const S = SETS[2];
-    for (const q of SETS) q.rays.level = q === S ? 1 - ramp(t, 0, 0.4) : 0;
-    const g = 1 - ramp(t, 0, 0.4);
+    // (the light of the digit the glass read last fades: the 0, or the one part 4 had come round to)
+    const S = SETS[Math.max(0, TESTS.indexOf(st.flatPrev))];
+    for (const q of SETS) q.rays.level = q === S ? 1 - ramp(ts, 0, 0.4) : 0;
+    const g = 1 - ramp(ts, 0, 0.4);
     for (let c = 0; c < 10; c++) glowNow[c] = g * S.glow[c];
     // the column: its backing goes, its spots stay until they fly (FOLD), then the chip's ten cells take over
     const fold = P5.fold[0];
-    cards.board({ on: t < fold ? 1 : 0, glow: glowNow, lit: g > 0.5 ? S.ans : -1, back: 1 - sm(ramp(t, P5.back[0], P5.back[1])) });
+    cards.board({ on: ts < fold ? 1 : 0, glow: glowNow, lit: g > 0.5 ? S.ans : -1, back: 1 - sm(ramp(ts, P5.back[0], P5.back[1])) });
     cards.screen({ back: 0, animal: 0 });
-    cards.fold(ramp(t, P5.fold[0], P5.fold[1]), t >= fold ? 1 - sm(ramp(t, P5.cells[0], P5.cells[1])) : 0);
-    // the card: by the chip, its 0 drawn all along; its rows peel off one after another into the wavefront
-    cards.show(3); st.cardOf = 3;
-    cards.cardPose(ramp(t, P5.card[0], P5.card[1]));
-    cards.look({ animal: 0, sharp: 1, sound: 0, back: 1 });
-    st.input = '0'; st.output = null; st.passed = 0;
-    wave.digit(3); wave.peel(Math.max(0, t - UNROLL));
+    cards.fold(ramp(ts, P5.fold[0], P5.fold[1]), ts >= fold ? 1 - sm(ramp(ts, P5.cells[0], P5.cells[1])) : 0);
+    // the card: by the chip, its digit drawn all along; its rows peel off one after another into the wavefront (come
+    // round: a quick fade to the next digit, as on part 4's card)
+    const test = round && t < FLAT_GAP + FADE / 2 ? st.flatPrev : st.flatTest;
+    cards.show(test); st.cardOf = test;
+    cards.cardPose(ramp(ts, P5.card[0], P5.card[1]));
+    cards.look({ animal: 0, sharp: round && t < FLAT_GAP + FADE ? Math.abs(1 - 2 * ramp(t, FLAT_GAP, FLAT_GAP + FADE)) : 1, sound: 0, back: 1 });
+    st.input = NAME[test]; st.output = null; st.passed = 0;
+    wave.digit(st.flatTest); wave.peel(Math.max(0, t - UNROLL));
     wave.level(t < UNROLL ? 0 : 1);
     wave.height(1 - sm(ramp(t, T_LIGHT + 0.4, T_LIGHT + 0.9)));
     bands.level(0);
@@ -628,14 +686,15 @@ export function create(ctx) {
     // pattern appears where the veins lay, its cells as the spots land
     bench.setStage({ chip: solid > 0 ? 1 : 0, solid });
     show.copy = solid > 0;
-    copyPat(sm(ramp(t, P5.solid[0] + 0.1, P5.solid[1] + 0.1)), -1e9);
-    copyStrip(sm(ramp(t, P5.cells[0], P5.cells[1])));
-    // the recorded light of the 0 (the old light stays dark until the new one starts in)
-    if (t >= T_LIGHT && once(1)) { st.askT = copySwept; copy.show(sample(3).x); }
-    const on = st.askT >= 0 && copySwept > st.askT;
-    copyLight = on ? 1 : 0;
-    const r = on ? copy.result : null;
-    st.bars = t >= UNROLL ? 784 : 0; st.exits = t >= P5.cells[0] ? 10 : 0;
+    copyPat(sm(ramp(ts, P5.solid[0] + 0.1, P5.solid[1] + 0.1)), -1e9);
+    copyStrip(sm(ramp(ts, P5.cells[0], P5.cells[1])));
+    // the recorded light of the digit (the old light stays dark until the new one starts in; come round, the last
+    // digit's light fades while the card turns)
+    if (t >= T_LIGHT && once(1)) { st.askT = copySwept; copy.show(sample(st.flatTest).x); }
+    const on = st.askT >= 0 && copySwept > st.askT, fading = round && !on && t < FLAT_GAP + 0.4;
+    copyLight = on ? 1 : fading ? 1 - ramp(t, FLAT_GAP, FLAT_GAP + 0.4) : 0;
+    const r = on || fading ? copy.result : null;
+    st.bars = t >= UNROLL ? 784 : 0; st.exits = ts >= P5.cells[0] ? 10 : 0;
     st.answer = r ? String(r.answer) : null;
     answerAt(r ? String(r.answer) : null, r ? copy.exitAt(r.answer, ansAt) : null, s);
     lProg.show(false); st.label = null;
@@ -667,6 +726,18 @@ export function create(ctx) {
     const sh = inst && inst.shown !== st.stale ? inst.shown : null;
     // (a new input on the chip: its wavefront stands up, then sinks as its light goes in)
     if (sh && sh !== st.waveOf) { st.waveOf = sh; st.waveT = t; }
+    // stepping by hand, once the part has run its course the chip goes on reading, as part 4's glass did: the next
+    // digit (7, 4, 0) or vowel once the answer to the last one has shown IN_SHOW seconds - its light on the chip, its
+    // answer out (a slow computer computes the vowels' light slowly) - and at the latest IN_MAX seconds after it was asked
+    if (st.waiting && inst && ph === 'run') {
+      const fresh = sh && st.inAsk === (id === 'image' ? sh.test : sh.name) && t >= st.waveT + 1.2 && st.answer != null;
+      if (fresh && st.ansT < 0) st.ansT = t;
+      if (st.inT < 0 || (st.ansT >= 0 && t >= st.ansT + IN_SHOW) || t >= st.inT + IN_MAX) {
+        if (id === 'image') inst.showTest(st.inAsk = TESTS[(TESTS.indexOf(sh ? sh.test : 17) + 1) % TESTS.length]);
+        else inst.act('vowel', st.inAsk = VOWELS[(VOWELS.indexOf(sh ? sh.name : 'o') + 1) % VOWELS.length]);
+        st.inT = t; st.ansT = -1;
+      }
+    }
     if (id === 'image') {
       bench.setStage({ projector: sm(ramp(t, 0, 1.2)) });
       if (t >= 0.8 && once(1)) bench.load('image');
@@ -678,7 +749,7 @@ export function create(ctx) {
       copyStrip(cur ? 0 : 1);
       copyPat(1, cur && ph === 'write' ? bp.x - bench.S.w / 2 + bench.S.w * Math.max(0, bench.sweep) : -1e9);
       if (st.runT >= 0 && t >= st.runT + 2.4 && once(2) && inst) inst.showTest(17);
-      const test = sh ? sh.test : 3;
+      const test = sh ? sh.test : st.flatTest;          // (until the program reads its own: the digit part 5 read last)
       wave.digit(test); wave.peel(wave.PEEL); wave.level(1); wave.height(waveHeight(t));
       bands.level(0);
       cards.look({ animal: 0, sharp: cardLook(t, test), sound: 0, back: 1 });
@@ -759,6 +830,10 @@ export function create(ctx) {
       return innerWidth < innerHeight ? st.viewTall : st.view;
     },
     caption: () => CAP[st.part],
+    parts: PARTS,
+    get step() { return st.part; },
+    get waiting() { return st.waiting; },
+    goOn() { st.go = true; },
     controls: [{ type: 'button', id: 'restart', key: 'btn.fromStart', plain: true }],
     act(id) { if (id === 'restart') go('gpu'); },
     value() { return null; },
@@ -782,22 +857,23 @@ export function create(ctx) {
       // (the first frame's raw can be negative: its timestamp is older than the clock's start)
       raw = Math.max(0, raw);
       st.t += raw;
-      const part = st.part, T = st.t;
-      // the story: on to the next part
+      // (T: what the part shows - its clock, or stepping by hand, round the part's window once it has run its course)
+      const part = st.part, T = shown(part, st.t);
+      // the story: on to the next part (stepping by hand, once Next is pressed)
       if (part === 'program' || part === 'rewrite') {
-        if (program(T, part === 'program' ? 'image' : 'voice')) advance(part === 'program' ? 'rewrite' : 'gpu', part === 'rewrite');
+        if (program(T, part === 'program' ? 'image' : 'voice') && onward()) advance(part === 'program' ? 'rewrite' : 'gpu', part === 'rewrite');
       } else {
         if (part === 'gpu' && st.loop && T < 0) loopBack(T);
         else {
           if (part === 'gpu' && st.loop && once(4)) { bench.load(null, { now: true }); bench.setStage({ chip: 0, projector: 0 }); }
           if (part === 'flat') flat(T); else if (part === 'super') superPart(T); else if (part === 'optics') optics(T); else gpuParts(part, T);
         }
-        if (T >= DUR[part]) advance(PARTS[PARTS.indexOf(part) + 1]);
+        if (st.t >= DUR[part] && onward()) advance(PARTS[PARTS.indexOf(part) + 1]);
       }
       // the GPU, always there: how hot (from the story's clock), how busy (part 1: while the dog is inside), its
       // thermometer up beside the glasses' in parts 1-4; from part 5 on it stands nearer, at the chip's side, its
       // thermometer over its right fan (a phone keeps it back, out of frame: there a thermometer alone would show)
-      const P = PARTS.indexOf(st.part), tt = st.t;
+      const P = PARTS.indexOf(st.part), tt = st.part === part ? T : st.t;
       gpu.warm = heatOf(st.part, tt);
       gpu.busy = st.part === 'gpu' ? (st.loop && tt < 0 ? 0 : sm(ramp(tt, 2.3, 2.8)) * (1 - sm(ramp(tt, 3.8, 4.4)))) : st.part === 'stream' ? 1 : 0.4;
       const back = st.part === 'gpu' && st.loop && tt < 0;
@@ -819,7 +895,7 @@ export function create(ctx) {
       const side = st.part === 'optics' ? 2.2 * sm(ramp(tt, 0, 1.5)) : P === 3 ? 2.2 : 0;
       if (beside) lGpu.at(gp.x + 1.6, ctx.y + 1.9, gp.z + 2.4);
       else lGpu.at(gp.x + a[0] + side, ctx.y + a[1], gp.z + a[2]);
-      lGpu.show(((st.part === 'gpu' && tt >= 0.3) || st.part === 'stream' || ((st.part === 'optics' || P >= 3) && !tall)) && !back);
+      lGpu.show(((st.part === 'gpu' && (tt >= 0.3 || st.loopN > 0)) || st.part === 'stream' || ((st.part === 'optics' || P >= 3) && !tall)) && !back);
       const hot = gpu.warm > 0.5;
       if (hot !== cls.hot) { cls.hot = hot; lGpu.el.classList.toggle('gpu', hot); }
       if (P < 3) { lProg.show(false); lAns.show(false); st.label = null; }

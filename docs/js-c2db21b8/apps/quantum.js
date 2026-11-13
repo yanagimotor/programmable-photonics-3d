@@ -299,7 +299,7 @@ export function create(ctx) {
     if (b === 1) { toMemory(memA, fibA); return; }
     if (st.part === 'pair' && pid === st.roundId) {
       const r = st.round;
-      shoot({ along: alongC(fA.c), dur: Math.max(0.6, R_MEET - st.t), rgb: TWIN, power: 1.0, fade: 0.03, onEnd: () => arrive(r) });
+      shoot({ along: alongC(fA.c), dur: Math.max(0.6, R_MEET - st.rt), rgb: TWIN, power: 1.0, fade: 0.03, onEnd: () => arrive(r) });
     } else shoot({ along: alongC(fA.c, 0, uOffA), dur: uOffA * fA.len / SPEED, rgb: TWIN, power: 0.95, fade: 0.1 });
   };
   // node B's twins (a picture of the same source, mirrored): born side by side in its stripes, to its two outputs
@@ -311,7 +311,7 @@ export function create(ctx) {
       const c = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
       shoot({ along: alongC(c), dur, rgb: TWIN, power: 0.9, fade: 0.04, onEnd: () => {
         if (b === 1) toMemory(B.mem, B.fib, B.n.matrixWorld);
-        else shoot({ along: alongC(fB.c), dur: Math.max(0.6, R_MEET - st.t), rgb: TWIN, power: 1.0, fade: 0.03, onEnd: () => arrive(r) });
+        else shoot({ along: alongC(fB.c), dur: Math.max(0.6, R_MEET - st.rt), rgb: TWIN, power: 1.0, fade: 0.03, onEnd: () => arrive(r) });
       } }, 0.7);
     }
   };
@@ -338,7 +338,16 @@ export function create(ctx) {
   };
 
   // ---------------------------------------------------------------- the story
-  const st = { part: 'chip', t: 0, serial: 0, round: 0, roundId: -1, webT: 0, kPair: 0, kWeb: 0, hooked: null, clicks: 0, focus: new THREE.Vector3(), view: null };
+  const st = { part: 'chip', t: 0, serial: 0, round: 0, roundId: -1, webT: 0, kPair: 0, kWeb: 0, hooked: null, clicks: 0, focus: new THREE.Vector3(), view: null,
+    waiting: false, go: false, metT: -1, rt: 0, live: false, gapT: -1 };
+  const PARTS = ['chip', 'pair', 'web'];
+  // stepping by hand (auto-play off: ctx.hold()), a part that has run its course stays (waiting) until Next (goOn), and
+  // keeps showing what it shows (RY, 2026-11-13): the chip keeps making twins, the web keeps sharing entanglement, and
+  // the pair part goes round - it counts as run PAIR_WAIT after its arc has grown; once the arc has faded, after
+  // PAIR_GAP, a new pair of twins sets out from each chip, meets, both detectors click, and the memories are entangled
+  // again (rt: the round's own clock; live: its twins have set out)
+  const PAIR_WAIT = 1.5, PAIR_GAP = 0.8;
+  const onward = () => { if (!ctx.hold() || st.go) return true; st.waiting = true; return false; };
   // (boxes: our pump laser, chip, projector and memory; the two chips, their memories and the meeting point; the web)
   const VIEWS = {
     chip: { target: [chipAt.x + 1.1, 3.4, 0.4], elev: 30, dist: 24.5, box: [[chipAt.x - 7.5, 0, -4.6], [chipAt.x + 9.8, 12, 4.6]], dur: 3.0 },
@@ -347,9 +356,18 @@ export function create(ctx) {
   };
   const go = part => {
     st.part = part; st.t = 0; st.serial++; st.round = 0; st.roundId = -1; pend.n = 0;
+    st.waiting = st.go = false; st.metT = -1; st.rt = 0; st.live = false; st.gapT = -1;
+    if (part === 'pair' && !arcAB.m.visible) arcAB.met = false;      // (an earlier visit's arc: not this round's)
     st.focus.fromArray(VIEWS[part].target);
     if (part === 'pair') B.mem.reset();
     else for (const m of mems) m.reset();
+  };
+  // the pair part come round: both memories empty again, the next round's twins about to set out
+  // (the arc's met is the last round's until a new one heralds it: cleared, or the new round would count as run at once)
+  const newRound = () => {
+    st.rt = 0; st.live = false; st.metT = -1; st.gapT = -1; pend.n = 0;
+    arcAB.met = false;
+    memA.reset(); B.mem.reset();
   };
   const restart = () => {
     go('chip');
@@ -365,6 +383,11 @@ export function create(ctx) {
     program: 'qsource',
     get view() { if (!st.view || st.view.serial !== st.serial) st.view = { ...VIEWS[st.part], serial: st.serial }; return st.view; },
     caption: () => `app.quantum.cap.${st.part}`,
+    parts: PARTS,
+    get step() { return st.part; },
+    get waiting() { return st.waiting; },
+    goOn() { st.go = true; },
+    go(part) { if (PARTS.includes(part)) go(part); },
     // part: 'chip' | 'pair' | 'web';  arc: the entanglement between our chip and the distant one (on x grown);
     // webArcs: arcs shown in the web;  photons: twins in flight in the scene;  memory: our memory 'idle' | 'bounce' |
     // 'stored' | 'entangled';  clicks: two-photon clicks at the meeting point;  t: seconds into the part
@@ -378,15 +401,19 @@ export function create(ctx) {
       if (p && st.hooked !== p.inst) { st.hooked = p.inst; p.inst.onExit(onExitA); }
       const running = !!p && bench.phase === 'run' && bench.task > 0.6;
       if (p) p.inst.auto = st.part === 'chip';
-      // the parts
-      if (st.part === 'chip') { if (running && st.t >= CHIP) go('pair'); }
+      // the parts (stepping by hand, each goes on only once Next is pressed: onward)
+      if (st.part === 'chip') { if (running && st.t >= CHIP && onward()) go('pair'); }
       else if (st.part === 'pair') {
-        if (!st.round && st.t >= R_BORN && p) startRound(p);
-        if (st.t >= PAIR) go('web');
+        st.rt += raw;
+        if (!st.live && st.rt >= R_BORN && p) { startRound(p); st.live = true; }
+        if (arcAB.met && st.metT < 0) st.metT = st.rt;
+        const done = st.t >= PAIR || (ctx.hold() && st.metT >= 0 && st.rt >= st.metT + PAIR_WAIT);
+        if (done && onward()) go('web');
+        else if (st.waiting && st.metT >= 0 && !arcAB.m.visible) { st.gapT = Math.max(0, st.gapT) + raw; if (st.gapT >= PAIR_GAP) newRound(); }
       } else if (st.part === 'web') {
         st.webT += raw;
         if (st.t > 3.5 && st.webT > 0.55) { st.webT = 0; webEvent(); }
-        if (st.t >= WEB) go('chip');
+        if (st.t >= WEB && onward()) go('chip');
       }
       // what is shown
       const kp = st.part === 'pair' || st.part === 'web' ? 1 : 0, kw = st.part === 'web' ? 1 : 0;

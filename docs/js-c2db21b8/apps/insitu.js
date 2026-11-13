@@ -37,8 +37,9 @@
 //   grid of the zoom-out and everything in it (apps/grid.js).
 //
 // The scene (apps/index.js): create(ctx) -> { program: 'wdm', view, caption, controls ("New target", "From the start"),
-// act, value, state, go(part, { target }), enter, leave, update }.  The story's clock runs on real time (raw).
-// go(part) poses a part at once (tests, the alias, screenshots); the story itself only moves forward.  A part after
+// act, value, state, go(part, { target }), enter, leave, update, parts, step, waiting, goOn }.  The story's clock runs
+// on real time (raw).  Stepping by hand (auto-play off, ctx.hold()), each part waits at its end for goOn().
+// go(part) poses a part at once (tests, the alias, screenshots, Back); the story itself only moves forward.  A part after
 // learn needs the target learned from the dark (and, from fireOk on, fixed in the fire; for snowOk also in the snow):
 // a twin of the lab does that off-screen, a few milliseconds of each frame, once per target, and the part's clock
 // starts when it is done and the router is on the chip (state.ready) - from the zoom-out, once the camera is back.
@@ -261,8 +262,19 @@ export function create(ctx) {
   // back: the close-up's view is a flight back from the zoom-out; nearW: the close-up's weather, fading as the camera
   // draws back)
   const st = { part: 'goal', t: 0, ready: false, want: null, target: FIRST.slice(), restartTo: null, fixing: false, fixN: 0,
-    fwd: 0, view: 'near', serial: 0, back: false, manyK: 0, near: true, nearW: 1, wide: false, loops: 0, laid: false };
+    fwd: 0, view: 'near', serial: 0, back: false, manyK: 0, near: true, nearW: 1, wide: false, loops: 0, laid: false,
+    waiting: false, go: false, waitT: 0 };
   const benchReady = () => { const p = rig.prog(); return !!p && bench.phase === 'run' && bench.task > 0.6; };
+  // stepping by hand (auto-play off: ctx.hold()), a part that has run its course - its time, or its learning or fix -
+  // stays (waiting) until Next (goOn), and goes round meanwhile (RY, 2026-11-13: a step left alone keeps explaining
+  // itself): the learning, the two fixes and the two zoom-outs start again from their beginning after REPLAY seconds
+  // (the match climbs again, the step count starts over); the fire and the snow come and go (comeAndGo); the goal and
+  // the three "working" parts stay as they are, the light running through the chip.  With auto-play it goes on.
+  const onward = () => { if (!ctx.hold() || st.go) return true; if (!st.waiting) st.waitT = st.t; st.waiting = true; return false; };
+  const REPLAY = 3.0;
+  // the fire's (the snow's) strength while its part goes round: on, dying down, gone a moment, back (s since waiting)
+  const comeAndGo = u => { const p = u % 7.0; return p < 1.5 ? 1 : p < 3.1 ? 1 - ease((p - 1.5) / 1.6) : p < 4.1 ? 0 : p < 5.7 ? ease((p - 4.1) / 1.6) : 1; };
+  const replayed = () => st.t - st.waitT >= REPLAY;
   const nearView = () => { if (st.view !== 'near') { st.view = 'near'; st.back = true; st.serial++; } };
   // the close-up's set-up (our chip under its projector, the source, detectors, board): hidden in the zoom-out, where
   // a picture of a chip takes the bench's place
@@ -289,7 +301,7 @@ export function create(ctx) {
   // back from the zoom-out to the goal: the camera flies back; the chip starts from the dark once the set-up shows
   const loopBack = target => {
     if (!(st.part === 'goal' && st.t < 0)) st.t = -LOOP;
-    st.part = 'goal'; st.restartTo = target.slice(); st.fixing = false;
+    st.part = 'goal'; st.restartTo = target.slice(); st.fixing = false; st.waiting = st.go = false;
     nearView();
   };
   // any order of the four colours but the identity and the one shown now
@@ -302,7 +314,7 @@ export function create(ctx) {
   // its curve - each disturbance adds one point to the curve, which falls with the match (rig.js draws the last
   // point at the live match), and its fix writes the dip into that point, then goes on with the same feedback
   const advance = (part, lab) => {
-    st.part = part; st.t = 0;
+    st.part = part; st.t = 0; st.waiting = st.go = false;
     if (part === 'fire' || part === 'snow') rig.st.hist.push(lab.match);
     else if (part === 'fireFix' || part === 'snowFix') {
       const h = rig.st.hist;
@@ -315,8 +327,11 @@ export function create(ctx) {
     }
   };
   const fix = (raw, lab, next) => {
-    if (rig.correct(raw, FIX_BEAT)) st.fixN++;
-    if (lab.match >= GOAL || st.fixN >= FIX_MAX) { st.fixing = false; rig.idle(); advance(next, lab); }
+    if (!st.waiting && rig.correct(raw, FIX_BEAT)) st.fixN++;
+    if (lab.match >= GOAL || st.fixN >= FIX_MAX) {
+      st.fixing = false; rig.idle();
+      if (onward()) advance(next, lab); else if (replayed()) go(st.part);       // (stepping by hand: the fix again)
+    }
   };
 
   // ---------------------------------------------------------------- the twin: go(part) learns off-screen
@@ -365,7 +380,7 @@ export function create(ctx) {
   // the part asked for, posed (the router on the chip, the twin done)
   const apply = (lab, p) => {
     const { part, target } = st.want;
-    st.want = null; st.ready = true;
+    st.want = null; st.ready = true; st.waiting = st.go = false;
     st.fixing = false; rig.idle();
     if (part === 'goal') {
       // (from the zoom-out the camera flies back first; while the set-up still shows, at once)
@@ -399,7 +414,7 @@ export function create(ctx) {
   const go = (part, { target } = {}) => {
     if (!PARTS.includes(part)) return;
     st.want = { part, target: (target || st.target).slice() };
-    st.ready = false;
+    st.ready = false; st.waiting = st.go = false;
     if (benchReady() && prepared()) apply(rig.lab(), rig.prog());
   };
 
@@ -407,6 +422,14 @@ export function create(ctx) {
     program: 'wdm',
     get view() { return viewNow(); },
     caption: () => CAP[st.part],
+    parts: PARTS,
+    get step() { return st.want ? st.want.part : st.part; },
+    get waiting() { return st.waiting; },
+    // (the fire or the snow away for a moment as it comes and goes: the next part posed, with it at full strength)
+    goOn() {
+      if ((st.part === 'fire' && w.sun < 0.99) || (st.part === 'snow' && w.snow < 0.99)) go(PARTS[PARTS.indexOf(st.part) + 1]);
+      else st.go = true;
+    },
     get state() {
       const lab = rig.lab();
       return { part: st.part, t: st.t, ready: st.ready, target: rig.st.target.join(''), step: rig.st.step, curve: rig.st.hist.length,
@@ -469,24 +492,30 @@ export function create(ctx) {
       // the story (its clock runs once the part asked for is posed; below 0 while the camera flies back)
       if (st.ready) {
         st.t += raw;
+        // (stepping by hand, each part goes on only once Next is pressed - onward - and goes round meanwhile)
         if (st.t >= 0) switch (st.part) {
-          case 'goal': if (st.t >= DUR.goal) advance('learn', lab); break;
+          case 'goal': if (st.t >= DUR.goal && onward()) advance('learn', lab); break;
           case 'learn': {
-            let i = 0;
-            while (rig.st.step >= BEAT[i].until) i++;
-            rig.correct(raw, BEAT[i]);
-            if (lab.match >= GOAL || rig.st.step >= MAXSTEP) { rig.idle(); advance('learned', lab); }
+            if (!st.waiting) {
+              let i = 0;
+              while (rig.st.step >= BEAT[i].until) i++;
+              rig.correct(raw, BEAT[i]);
+            }
+            if (lab.match >= GOAL || rig.st.step >= MAXSTEP) {
+              rig.idle();
+              if (onward()) advance('learned', lab); else if (replayed()) go('learn');      // (again from the dark)
+            }
             break;
           }
-          case 'learned': if (st.t >= DUR.learned) advance('fire', lab); break;
-          case 'fire': w.sun = ease(st.t / RAMP); if (st.t >= DUR.fire) advance('fireFix', lab); break;
+          case 'learned': if (st.t >= DUR.learned && onward()) advance('fire', lab); break;
+          case 'fire': w.sun = st.waiting ? comeAndGo(st.t - st.waitT) : ease(st.t / RAMP); if (st.t >= DUR.fire && onward()) advance('fireFix', lab); break;
           case 'fireFix': fix(raw, lab, 'fireOk'); break;
-          case 'fireOk': if (st.t >= DUR.fireOk) advance('snow', lab); break;
-          case 'snow': w.sun = 1 - ease(st.t / RAMP); w.snow = ease(st.t / RAMP); if (st.t >= DUR.snow) advance('snowFix', lab); break;
+          case 'fireOk': if (st.t >= DUR.fireOk && onward()) advance('snow', lab); break;
+          case 'snow': w.sun = 1 - ease(st.t / RAMP); w.snow = st.waiting ? comeAndGo(st.t - st.waitT) : ease(st.t / RAMP); if (st.t >= DUR.snow && onward()) advance('snowFix', lab); break;
           case 'snowFix': fix(raw, lab, 'snowOk'); break;
-          case 'snowOk': if (st.t >= DUR.snowOk) advance('conv', lab); break;
-          case 'conv': if (st.t >= DUR.conv) advance('many', lab); break;
-          case 'many': if (st.t >= DUR.many) { st.loops++; loopBack(nextTarget()); } break;
+          case 'snowOk': if (st.t >= DUR.snowOk && onward()) advance('conv', lab); break;
+          case 'conv': if (st.t >= DUR.conv) { if (onward()) advance('many', lab); else if (replayed()) go('conv'); } break;
+          case 'many': if (st.t >= DUR.many) { if (onward()) { st.loops++; loopBack(nextTarget()); } else if (replayed()) go('many'); } break;
           default: break;
         }
       }
