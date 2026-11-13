@@ -15,6 +15,7 @@
   --s: 1;                     /* UI scale: 1 on a desk, larger on a kiosk screen (?kiosk=1 or ?scale=) */
   --font: "Segoe UI", "Yu Gothic UI", "Meiryo", system-ui, -apple-system, "Hiragino Sans", sans-serif;
   --panel-w: min(calc(400px * var(--s)), 34vw);
+  --cat-w: min(calc(300px * var(--s)), 27vw);   /* the catalog on the right (tabs 2-4) */
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -97,6 +98,7 @@ html[lang="ja"] .fwhat { max-width: 30em; }
 .navbtn { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; min-width: calc(40px * var(--s)); height: calc(40px * var(--s)); padding: 0 calc(12px * var(--s));
   cursor: pointer; font-size: calc(18px * var(--s)); line-height: 1; text-shadow: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
 .navbtn:hover { border-color: var(--line-2); }
+.navbtn:disabled { opacity: 0.35; cursor: default; border-color: var(--line); }
 .navbtn.back { font-size: calc(13.5px * var(--s)); font-weight: 600; }
 .legend { display: inline-flex; align-items: center; gap: 7px; background: rgba(11, 15, 20, 0.62); border: 1px solid var(--line); border-radius: 999px;
   padding: 4px 11px 4px 9px; font-size: calc(13px * var(--s)); cursor: pointer; }
@@ -146,8 +148,8 @@ html[lang="ja"] #panel h3 { letter-spacing: 0.02em; }
 .p-nav button:hover { border-color: var(--line-2); }
 .p-count { color: var(--muted); font-size: calc(13px * var(--s)); font-variant-numeric: tabular-nums; }
 
-/* ---------------------------------------------------------------- tab 2: the program catalog (right) */
-#catalog { position: absolute; z-index: 5; top: calc(76px * var(--s)); right: 16px; width: min(calc(300px * var(--s)), 27vw);
+/* ---------------------------------------------------------------- tabs 2-4: the catalog (right) */
+#catalog { position: absolute; z-index: 5; top: calc(76px * var(--s)); right: 16px; width: var(--cat-w);
   max-height: calc(100% - 76px * var(--s) - 16px); overflow-y: auto; scrollbar-width: thin;
   background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 12px 10px; backdrop-filter: blur(8px); box-shadow: 0 10px 40px rgba(0,0,0,0.45); }
 #catalog h2 { margin: 0; font-size: calc(17px * var(--s)); font-weight: 700; display: flex; align-items: center; gap: 8px; }
@@ -172,7 +174,7 @@ html[lang="ja"] #panel h3 { letter-spacing: 0.02em; }
 .callout.program span { border-color: rgba(63, 255, 106, 0.75); color: #dcffe4; }
 .callout.program span::after { background: rgba(63, 255, 106, 0.8); }
 .callout.program::before { background: #3fff6a; box-shadow: 0 0 8px #3fff6a; }
-html.kiosk #catalog { width: min(calc(300px * var(--s)), 25vw); }
+html.kiosk { --cat-w: min(calc(300px * var(--s)), 25vw); }
 /* tabs 2 and 3: the story stays at the bottom left, as on tab 1 (the camera fits the scene above it: table.js) */
 body[data-tab="prog"] #stage::after, body[data-tab="apps"] #stage::after { height: 24%; }
 /* tab 3: the GPU's name in hot orange, once it is hot (cold, it is the neutral callout: orange means heat) */
@@ -202,6 +204,28 @@ body[data-tab="prog"] #stage::after, body[data-tab="apps"] #stage::after { heigh
 .callout.twins span { border-color: rgba(255, 110, 95, 0.85); color: #ffe2de; }
 .callout.twins span::after { background: rgba(255, 110, 95, 0.85); }
 .callout.twins::before { background: #ff6e5f; box-shadow: 0 0 8px #ff6e5f; }
+/* tab 4, "Journal references": the two papers in a card over the (empty) view, left of the catalog; each its QR code
+   (dark on white, as scanners want), journal, title, authors, volume and pages, DOI (refs.js) */
+#refs { position: absolute; z-index: 4; top: calc(76px * var(--s)); left: 18px; right: calc(var(--cat-w) + 34px); bottom: calc(16px + 30px * var(--s));
+  display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.refcard { pointer-events: auto; width: min(100%, calc(760px * var(--s))); max-height: 100%; overflow-y: auto; scrollbar-width: thin;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: calc(16px * var(--s)) calc(20px * var(--s)) calc(18px * var(--s));
+  backdrop-filter: blur(8px); box-shadow: 0 10px 40px rgba(0,0,0,0.45); }
+.rhead { margin: 0; font-size: calc(21px * var(--s)); font-weight: 700; }
+.rhint { margin: 4px 0 calc(14px * var(--s)); color: var(--muted); font-size: calc(14px * var(--s)); line-height: 1.4; }
+.reflist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: calc(12px * var(--s)); }
+.ref { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: calc(18px * var(--s)); padding: calc(12px * var(--s));
+  background: #141b23; border: 1px solid var(--line); border-radius: 12px; }
+.ref .qr { display: block; width: min(calc(150px * var(--s)), 20vh); height: auto; aspect-ratio: 1; }
+.rtext { display: flex; flex-direction: column; gap: calc(3px * var(--s)); min-width: 0; }
+.rjournal { font-size: calc(12.5px * var(--s)); font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--gold); }
+.rtitle { font-size: calc(18px * var(--s)); font-weight: 650; line-height: 1.3; text-wrap: balance; }
+.rauth, .rcite { font-size: calc(14.5px * var(--s)); line-height: 1.35; }
+.rcite { color: var(--muted); }
+.rcite b { color: var(--text); font-weight: 600; }
+.rdoi { margin-top: calc(2px * var(--s)); font-size: calc(13.5px * var(--s)); color: var(--accent); text-decoration: none; overflow-wrap: anywhere; }
+a.rdoi:hover { text-decoration: underline; }
+
 /* phones: the catalog is one row of pills along the bottom of the view, scrolling sideways; the story sits above it */
 @media (max-width: 600px) {
   #catalog { top: auto; left: 8px; right: 8px; bottom: 8px; width: auto; max-height: none; padding: 6px; border-radius: 12px; overflow-x: auto; overflow-y: hidden; }
@@ -210,13 +234,23 @@ body[data-tab="prog"] #stage::after, body[data-tab="apps"] #stage::after { heigh
   .prog { width: auto; flex: none; padding: 7px 11px; gap: 7px; }
   .prog .pname { font-size: 13px; white-space: nowrap; }
   .prog.none { margin-bottom: 0; }
-  body[data-tab="prog"] #story, body[data-tab="apps"] #story { bottom: 60px; }
+  body[data-tab="prog"] #story, body[data-tab="apps"] #story, body[data-tab="how"] #story { bottom: 60px; }
   /* tab 3 on a phone: Japanese captions with proportional kana and punctuation, so that each sentence keeps to one
      line on phones whose fonts draw kana full width (two lines for two sentences, as in kiosk mode) */
   html[lang="ja"] body[data-tab="apps"] #caption { font-feature-settings: "palt"; }
-  /* (an application with two buttons of its own - the in situ story: with the tour on, the countdown would wrap the
-     row onto a second line over the view; "Stop the tour" says enough) */
+  /* (an application with two buttons of its own - the in situ story: with auto-play on, the countdown would wrap the
+     row onto a second line over the view; the switch in the top bar says enough) */
   body[data-tab="apps"] .frow:has(> .row + .row) > #tourhint { display: none; }
+  /* the papers: the whole width, above the pills; smaller codes (on a phone the DOI is the link to tap) */
+  #refs { top: 52px; left: 8px; right: 8px; bottom: 64px; }
+  .refcard { padding: 12px; }
+  .rhead { font-size: 17px; }
+  .rhint { font-size: 12.5px; margin-bottom: 10px; }
+  .ref { gap: 12px; padding: 9px; }
+  .ref .qr { width: 92px; }
+  .rtitle { font-size: 14.5px; }
+  .rauth, .rcite { font-size: 12.5px; }
+  .rdoi { font-size: 12px; }
 }
 
 /* ---------------------------------------------------------------- the presentation buttons */

@@ -45,8 +45,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         pass  # quiet
 
 
+class Server(http.server.ThreadingHTTPServer):
+    # the page asks for some 80 files at once; with Python's default backlog of 5, macOS resets the connections that
+    # wait, and chips or programs went missing at random (ERR_CONNECTION_RESET; 2026-11-13)
+    request_queue_size = 128
+
+
 if __name__ == "__main__":
     handler = functools.partial(Handler, directory=ROOT)
-    with http.server.ThreadingHTTPServer(("127.0.0.1", PORT), handler) as httpd:
+    with Server(("127.0.0.1", PORT), handler) as httpd:
         print("Serving %s at http://127.0.0.1:%d/  (Ctrl+C to stop)" % (ROOT, PORT), flush=True)
         httpd.serve_forever()
