@@ -25,21 +25,22 @@ Four tabs along the bottom (keys 1-4):
    wavelength splitter for 1310, 1410, 1510 and 1610 nm) and the light computed through them.
 3. **Potential applications** - optical computation; in situ inverse design and error correction (the chip learns its
    own design, then keeps it working when heat or cold disturbs it); quantum internet.
-4. **Further details** - three parts, chosen on the right: **How it works**, the chip's layers (waveguide,
+4. **Further details** - four parts, chosen on the right: **How it works**, the chip's layers (waveguide,
    photoconductor, transparent electrodes), the voltage across them and the pattern of light, in seven steps;
    **Journal references**, the Nature and Nature Physics papers above, each with the cover of its issue and a QR
-   code of its DOI link to read with a phone; and **Press release and news coverage**, four articles about the work
+   code of its DOI link to read with a phone; **Press release and news coverage**, four articles about the work
    (NTT Technical Journal, Nature News & Views, Cornell Chronicle, The Asahi Shimbun), each with a QR code of its
-   link. The covers are Springer Nature's: Nature 649, issue 8096 (cover image: Peter Puklus) and Nature Physics
-   22, issue 1, with the Nature Physics paper on it (image: Martin Stein, Cornell University; cover design: Laoise
-   Mac Gabhann).
+   link; and **This exhibition**, a QR code of this page itself on GitHub Pages, to open it on a phone (on the
+   Japanese screen the code opens the page in Japanese). The covers are Springer Nature's: Nature 649, issue 8096
+   (cover image: Peter Puklus) and Nature Physics 22, issue 1, with the Nature Physics paper on it (image: Martin
+   Stein, Cornell University; cover design: Laoise Mac Gabhann).
 
 Back and Next (or the arrow keys) step through each tab - a chip, a program, a part of an application's story, a
 step of how it works - and nothing moves on by itself: left alone, a step keeps going round what it shows (the next
 digit read, the learning again, a new pair of photons), so that it can stay on screen as an explanation.
 **Auto-play**, the switch at the top right, plays the steps by itself instead and leads on from tab to tab, ending
-on the journal references and the press coverage. The light follows the physics where that was cheap to compute; elsewhere the pictures
-are illustrations.
+on the journal references, the press coverage and this exhibition's QR code. The light follows the physics where
+that was cheap to compute; elsewhere the pictures are illustrations.
 
 ## View it on this computer
 
@@ -53,7 +54,7 @@ through the four tabs, again and again, until someone touches the screen. Exit w
 
 URL options: `?lang=ja`; `?kiosk=1` (kiosk mode); `?tab=prog`; `?tab=apps&app=insitu` (or `compute`, `quantum`;
 `correct` opens the in situ story at the fire); `?tab=how`; `?tab=refs` (tab 4 on the journal references);
-`?tab=press` (tab 4 on the press coverage);
+`?tab=press` (tab 4 on the press coverage); `?tab=exhibit` (tab 4 on this exhibition's QR code);
 `?dev=router` (tab 1 with that chip in focus); `?tour=1` (auto-play on); `?scale=1.6` (larger text);
 `?quality=low` (slower computers); `?motion=full` (the camera flies even where the computer asks for reduced
 motion, as over remote desktop) or `?motion=reduce`.

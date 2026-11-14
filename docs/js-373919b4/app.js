@@ -10,16 +10,18 @@
 // can compute - a GPU that sharpens blurry pictures of cartoon animals and heats up as they stream through it, a lens
 // that sharpens the same pictures and stays cold, a "super glass" that reads handwritten digits, flattened into our
 // chip, whose pattern is then written by light and rewritten for spoken vowels.
-// Tab 4: "Further details" (RY, 2026-11-13), the last tab (after the applications), two parts chosen on the right:
-// "How it works" (how.js) - the chip's layers, the voltage and the light, step by step - and "Journal references"
-// (refs.js) - the two papers this page builds on, each with a QR code to read with a phone.
+// Tab 4: "Further details" (RY, 2026-11-13), the last tab (after the applications), four parts chosen on the right:
+// "How it works" (how.js) - the chip's layers, the voltage and the light, step by step - "Journal references"
+// (refs.js) - the two papers this page builds on, each with its issue's cover and a QR code to read with a phone -
+// and (2026-11-14) "Press release and news coverage" (refs.js) - articles about the work, each with a QR code - and
+// "This exhibition" (refs.js) - a QR code of this page itself, to take it away on a phone.
 //
 // Stepping (RY, 2026-11-13): the visitor steps with Back and Next - a chip, a program, a part of an application's
 // story, a step of how it works - and nothing moves on by itself.  "Auto-play", the switch in the top bar (off by
 // default), plays the steps by itself instead (the tour) and leads on from tab to tab; a step by hand turns it off.
 // The kiosk still falls back to its own loop after IDLE_S seconds without input.
 //
-// URL parameters: tab=prog|apps|how (open on tab 2, 3 or 4; tab=refs: tab 4's journal references), lang=ja|en, kiosk=1 (a screen left running on its own: Japanese unless lang=en, larger text, idle reset and tour), dev=<id> (open with
+// URL parameters: tab=prog|apps|how (open on tab 2, 3 or 4; tab=refs|press|exhibit: tab 4's cards), lang=ja|en, kiosk=1 (a screen left running on its own: Japanese unless lang=en, larger text, idle reset and tour), dev=<id> (open with
 // that chip in focus), only=<id,id> (load only these chips - for development), tour=1 (auto-play on), labels=0,
 // quality=low, motion=reduce|full, scale=<ui scale>, panel=1 (the detailed panel), debug (show the error log);
 // for tests: dwell=<s>, idle=<s>, hold=0 (tab 3's stories run on by themselves without auto-play, as before).
@@ -28,7 +30,7 @@ import { loadDevices } from './devices/index.js';
 import { loadPrograms } from './programs/index.js';
 import { APPS } from './apps/index.js';
 import { STEPS } from './how.js';
-import { renderRefs } from './refs.js';
+import { renderCard } from './refs.js';
 import { t, setLang, getLang, applyDom, fill } from './i18n.js';
 import { CATEGORY, css } from './kit/colour.js';
 
@@ -62,17 +64,19 @@ const TOUR_DWELL_PROG = +params.get('dwell') || 13;   // seconds per program on 
 const TOUR_DWELL_APPS = +params.get('dwell') || 0;    // seconds per application on the tour (0: each its own, APPS)
 // seconds on one item of the tour: its own, else an application's whole story (its zoom-outs too), a program, a chip
 const HOW_S = +params.get('dwell') || 7;              // seconds per step of "How it works" (on its own, and on the tour)
-const REFS_S = +params.get('dwell') || 15;            // seconds on the journal references, auto-play's last item
-// tab 4's two parts (the catalog on the right): the steps of how it works, the papers; each its dot's colour
-const DETAILS = [{ id: 'how', color: '#3fff6a' }, { id: 'refs', color: '#e3b94d' }];
+const REFS_S = +params.get('dwell') || 15;            // seconds on each card of tab 4 (papers, press, exhibition), auto-play's last items
+// tab 4's four parts (the catalog on the right): the steps of how it works, then three cards over the empty view
+// (refs.js: the papers, the press coverage, this exhibition); each its dot's colour
+const DETAILS = [{ id: 'how', color: '#3fff6a' }, { id: 'refs', color: '#e3b94d' }, { id: 'press', color: '#ff9a5c' }, { id: 'exhibit', color: '#73c8ff' }];
+const CARDS = ['refs', 'press', 'exhibit'];
 const dwellOf = it => it.dwell ?? (it.tab === 'apps' ? TOUR_DWELL_APPS || (APPS.find(a => a.id === it.id) || {}).dwell || 18 : it.tab === 'prog' ? TOUR_DWELL_PROG : it.tab === 'how' ? HOW_S : TOUR_DWELL);
 // stepping by hand, each part of tab 3's stories waits at its end for Next (apps/index.js hold); hold=0, for tests,
 // lets the stories run on by themselves as they did before
 const HOLD = params.get('hold') !== '0';
-// auto-play leads on from a tab to the next; on tab 4 after the steps of how it works and the papers, it ends
+// auto-play leads on from a tab to the next; on tab 4 after the steps of how it works and its cards, it ends
 const NEXT_TAB = { conv: 'prog', prog: 'apps', apps: 'how' };
 // the kiosk's idle loop, a trailer: the table, three etched chips, the same three jobs written on the blank chip
-// (within about 40 s), then the applications, how it works and the papers
+// (within about 40 s), then the applications, how it works, the papers, the press coverage and this exhibition
 const TRAILER = [{ tab: 'conv', id: null, dwell: 6 }, ...['router', 'awg', 'shg'].map(id => ({ tab: 'conv', id, dwell: 9 })),
   ...['router', 'awg', 'shg'].map(id => ({ tab: 'prog', id, dwell: 10 }))];
 
@@ -93,7 +97,7 @@ export class App {
     this.catalog = CATALOG.map(c => ({ ...c, mod: progs[c.id] || (this.entries.find(e => e.mod.meta.id === c.id && !e.error) || {}).mod })).filter(c => c.mod);
     this.table = new Table($('#stage'), { entries: this.entries, catalog: this.catalog, programs: progs, lang: getLang, quality: params.get('quality') || 'high', kiosk: KIOSK, reduced: this.reduced });
     this.tab = 'conv';
-    this.detail = 'how';                 // tab 4: 'how' (how it works) | 'refs' (journal references)
+    this.detail = 'how';                 // tab 4: 'how' (how it works) | a card: 'refs' (papers), 'press', 'exhibit' (this page)
     for (const msg of this.table.errors) window.dispatchEvent(new ErrorEvent('error', { message: msg }));
     this.order = this.table.devices.map(d => d.id);
     this.focusId = null;
@@ -113,7 +117,7 @@ export class App {
     const dev = params.get('dev');
     if (params.get('app')) this.table.apps.load(params.get('app'));      // ?tab=apps&app=insitu: that application
     const tab0 = params.get('tab');
-    if (['prog', 'apps', 'how', 'refs'].includes(tab0)) { this.setTab(tab0 === 'refs' ? 'how' : tab0, { instant: true }); if (tab0 === 'refs') this.setDetail('refs'); }
+    if (['prog', 'apps', 'how', ...CARDS].includes(tab0)) { this.setTab(CARDS.includes(tab0) ? 'how' : tab0, { instant: true }); if (CARDS.includes(tab0)) this.setDetail(tab0); }
     else if (dev && this.table.byId[dev]) this.focus(dev, { instant: true });
     else this.overview({ instant: true });
     if (params.get('labels') === '0') this.setLabels(false);
@@ -163,24 +167,25 @@ export class App {
     this.syncModes();
     this.refreshTexts();
   }
-  // tab 4: "How it works" (the chip's layers in 3D, step by step; back from the papers, from its first step) or
-  // "Journal references" (a card of the papers with their QR codes; the 3D view is left empty behind it)
+  // tab 4: "How it works" (the chip's layers in 3D, step by step; back from a card, from its first step), or a card
+  // over the empty 3D view: "Journal references", "Press release and news coverage" or "This exhibition" (refs.js)
   setDetail(d) {
     if (this.tab !== 'how' || d === this.detail) return;
+    const was = this.detail;
     this.detail = d;
-    if (d === 'refs') this.table.how.leave(); else this.table.how.enter();
+    if (d === 'how') this.table.how.enter(); else if (was === 'how') this.table.how.leave();
     this.refreshTexts();
   }
   syncDetail() {
-    const on = this.tab === 'how' && this.detail === 'refs', box = $('#refs');
+    const on = this.tab === 'how' && CARDS.includes(this.detail), box = $('#refs');
     document.body.dataset.detail = this.tab === 'how' ? this.detail : '';
     box.hidden = !on;
-    if (on) renderRefs(box, { kiosk: KIOSK });
+    if (on) renderCard(box, this.detail, { kiosk: KIOSK });
   }
 
   // ------------------------------------------------------------------ tabs 2 and 3: the catalog on the right
   // tab 2: "No program" first (no light: the chip is blank), then the programs; tab 3: the applications; tab 4: how
-  // it works and the journal references
+  // it works and its three cards
   buildCatalog() {
     const list = $('#catalog .cat-list');
     list.innerHTML = '';
@@ -261,7 +266,7 @@ export class App {
     applyDom();
     $('#btn-lang').textContent = t('btn.lang');
     this.invite.textContent = t('tour.invite');
-    $('#tabsub').textContent = t(this.tab === 'how' && this.detail === 'refs' ? 'tab.refs.sub' : `tab.${this.tab}.sub`);
+    $('#tabsub').textContent = t(this.tab === 'how' && CARDS.includes(this.detail) ? `tab.${this.detail}.sub` : `tab.${this.tab}.sub`);
     this.syncDetail();
     this.buildCatalog();
     this.table.bench.setLabelText(t);
@@ -417,7 +422,7 @@ export class App {
   renderStory() {
     if (this.tab === 'prog') { this.renderProgStory(); return; }
     if (this.tab === 'apps') { this.renderAppsStory(); return; }
-    if (this.tab === 'how') { if (this.detail === 'refs') this.renderRefsStory(); else this.renderHowStory(); return; }
+    if (this.tab === 'how') { if (CARDS.includes(this.detail)) this.renderCardStory(); else this.renderHowStory(); return; }
     const cap = $('#caption'), ctl = $('#controls'), note = $('#note');
     ctl.innerHTML = '';
     if (!this.focusId) {
@@ -574,8 +579,8 @@ export class App {
     if (this.tour) this.addTourHint(row);
     ctl.append(row);
   }
-  // "Journal references": the card says it all (refs.js); the story keeps only auto-play's countdown
-  renderRefsStory() {
+  // tab 4's cards: the card says it all (refs.js); the story keeps only auto-play's countdown
+  renderCardStory() {
     const ctl = $('#controls');
     ctl.innerHTML = '';
     this.syncers = [];
@@ -603,12 +608,13 @@ export class App {
   startTour({ loop = false, fromStart = false } = {}) {
     const chips = this.order.map(id => ({ tab: 'conv', id })), progs = this.catalog.map(c => ({ tab: 'prog', id: c.id }));
     const apps = APPS.map(a => ({ tab: 'apps', id: a.id })), hows = Array.from({ length: STEPS }, (_, i) => ({ tab: 'how', id: i }));
-    // (tab 4: the steps of how it works, then the papers - where auto-play ends, and the kiosk's loop shows them a while)
-    const refs = { tab: 'how', id: 'refs', dwell: REFS_S };
-    const items = loop ? [...TRAILER, ...apps, ...hows.map(h => ({ ...h, dwell: 6 })), { ...refs, dwell: 12 }]
-      : this.tab === 'prog' ? progs : this.tab === 'apps' ? apps : this.tab === 'how' ? [...hows, refs] : chips;
+    // (tab 4: the steps of how it works, then its cards - the papers, the press, this exhibition: auto-play ends on the
+    // last, and the kiosk's loop shows each a while)
+    const cards = CARDS.map(id => ({ tab: 'how', id, dwell: REFS_S }));
+    const items = loop ? [...TRAILER, ...apps, ...hows.map(h => ({ ...h, dwell: 6 })), ...cards.map(c => ({ ...c, dwell: 12 }))]
+      : this.tab === 'prog' ? progs : this.tab === 'apps' ? apps : this.tab === 'how' ? [...hows, ...cards] : chips;
     let i = 0;
-    if (!loop && !fromStart) { const cur = this.tab === 'prog' ? this.table.bench.selected : this.tab === 'apps' ? this.table.apps.selected : this.tab === 'how' ? (this.detail === 'refs' ? 'refs' : this.table.how.step) : this.focusId; const j = items.findIndex(it => it.id === cur); if (j >= 0) i = j; }
+    if (!loop && !fromStart) { const cur = this.tab === 'prog' ? this.table.bench.selected : this.tab === 'apps' ? this.table.apps.selected : this.tab === 'how' ? (CARDS.includes(this.detail) ? this.detail : this.table.how.step) : this.focusId; const j = items.findIndex(it => it.id === cur); if (j >= 0) i = j; }
     this.tour = { items, i, t: 0, loop, rest: false };
     this.syncAuto();
     this.tourGo();
@@ -619,7 +625,7 @@ export class App {
     if (it.tab !== this.tab) { this.setTab(it.tab); this.tour = tr; }
     if (it.tab === 'conv') { if (it.id) this.focus(it.id, { fromTour: true }); else if (this.focusId) this.overview(); }
     else if (it.tab === 'prog') { this.table.bench.load(it.id); this.syncCatalog(); }
-    else if (it.tab === 'how') { if (it.id === 'refs') this.setDetail('refs'); else { this.setDetail('how'); this.table.how.go(it.id); } }
+    else if (it.tab === 'how') { if (CARDS.includes(it.id)) this.setDetail(it.id); else { this.setDetail('how'); this.table.how.go(it.id); } }
     else { this.table.apps.load(it.id); this.syncCatalog(); }
   }
   stopTour() {
@@ -643,7 +649,7 @@ export class App {
       if (tr.i >= tr.items.length) {
         if (tr.loop) { tr.rest = true; if (this.tab !== 'conv') { this.setTab('conv'); this.tour = tr; } this.overview(); this.renderStory(); return; }
         // auto-play leads on to the next tab, from its start: today's chips -> the chip written by light -> what it
-        // can do -> further details; after the papers it ends there (the switch goes off)
+        // can do -> further details; after its cards it ends there, on this exhibition (the switch goes off)
         const next = NEXT_TAB[this.tab];
         this.tour = null;
         if (this.tab === 'conv') this.overview();
@@ -687,7 +693,7 @@ export class App {
     if (this.tab === 'conv') { this.step(d); return; }
     if (this.tab === 'prog') { this.stepProgram(d); return; }
     if (this.tab === 'apps') { const a = this.table.apps; if (d > 0 && !a.next()) this.stepProgram(1); else if (d < 0) a.prev(); }
-    else if (this.detail === 'refs') return;               // (the papers: nothing to step through)
+    else if (CARDS.includes(this.detail)) return;          // (tab 4's cards: nothing to step through)
     else if (d > 0) this.table.how.next(); else this.table.how.prev();
     this.renderStory();
   }
