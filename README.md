@@ -23,7 +23,9 @@ Four tabs along the bottom (keys 1-4):
    The light router, image recognition and spectrometer show recorded simulations made with the 2D Waveguide
    Studio, a waveguide simulator: patterns found by inverse design (4 x 4 routings; an MNIST digit classifier; a
    wavelength splitter for 1310, 1410, 1510 and 1610 nm) and the light computed through them.
-3. **Potential applications** - optical computation; in situ inverse design and error correction (the chip learns its
+3. **Potential applications** - optical computation (ending on a graph of the energy per calculation: a GPU's
+   0.2 pJ x N^2 against the light's 10 pJ x 2N for converting its N inputs and N outputs, with the hot GPU and the
+   chip standing on it); in situ inverse design and error correction (the chip learns its
    own design, then keeps it working when heat or cold disturbs it); quantum internet.
 4. **Further details** - four parts, chosen on the right: **How it works**, the chip's layers (waveguide,
    photoconductor, transparent electrodes), the voltage across them and the pattern of light, in seven steps;
@@ -53,7 +55,7 @@ text (kiosk mode); after 90 s without input it goes back to Japanese and plays a
 through the four tabs, again and again, until someone touches the screen. Exit with Alt+F4.
 
 URL options: `?lang=ja`; `?kiosk=1` (kiosk mode); `?tab=prog`; `?tab=apps&app=insitu` (or `compute`, `quantum`;
-`correct` opens the in situ story at the fire); `?tab=how`; `?tab=refs` (tab 4 on the journal references);
+`correct` opens the in situ story at the fire, `energy` optical computation at its energy graph); `?tab=how`; `?tab=refs` (tab 4 on the journal references);
 `?tab=press` (tab 4 on the press coverage); `?tab=exhibit` (tab 4 on this exhibition's QR code);
 `?dev=router` (tab 1 with that chip in focus); `?tour=1` (auto-play on); `?scale=1.6` (larger text);
 `?quality=low` (slower computers); `?motion=full` (the camera flies even where the computer asks for reduced
