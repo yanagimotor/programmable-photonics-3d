@@ -3,7 +3,8 @@
 // on it beside its line and our light chip lie on it beside the light's (apps/compute.js places them with plotAt).
 //
 // Real, and pictures:
-//   Real: the two lines.  The GPU does N^2 multiply-accumulates at about 0.2 pJ each: 0.2 pJ x N^2 (slope 2).  In
+//   Real: the two lines.  The GPU, an NVIDIA B300, does N^2 multiply-accumulates at about 0.2 pJ each: 0.2 pJ x N^2
+//   (slope 2).  In
 //   the light, the multiplications themselves cost nothing; each of the N inputs and N outputs is converted - a
 //   digital-to-analog converter and a modulator in, a photodetector and an analog-to-digital converter out - at about
 //   10 pJ each (the upper end of 1-10 pJ for about 8 bits at GHz rates): 10 pJ x 2N (slope 1).  The lines cross at
@@ -25,7 +26,7 @@ const FONT = '"Segoe UI", "Yu Gothic UI", "Meiryo", system-ui, sans-serif';
 const PX = 100;                                         // canvas pixels per world unit
 const LIFT = 0.05;                                      // the sheet's height over the table
 // the plot inside the sheet (canvas pixels, for a sheet of 26 x 17): room on the left for the energy axis's word and
-// ticks, below for the size axis and the small print
+// ticks, below for the size axis
 const BOX = { x0: 380, x1: 2470, y0: 120, y1: 1400 };
 const DEC_N = 3, DEC_E = 6;                             // N from 1 to 1000; energy from 1 pJ to 1 uJ
 const E_MAC = 0.2, E_CONV = 10;                         // pJ per multiply-accumulate (GPU); pJ per conversion (light)
@@ -39,16 +40,14 @@ export const CROSS = { u: Math.log10(2 * E_CONV / E_MAC) / DEC_N, v: vLight(Math
 
 const TEXT = {
   en: {
-    energy: 'Energy for one calculation', size: 'Size of the calculation  N', what: '(an N × N matrix times a vector)',
-    gpu: 'GPU', gpuHow: 'N² multiplications × 0.2 pJ', light: 'Light', lightHow: '2N signal conversions × 10 pJ',
+    energy: 'Energy for one matrix multiplication', size: 'Size of the calculation  N', what: '(an N × N matrix times a vector)',
+    gpu: 'GPU', gpuMake: 'NVIDIA B300', gpuHow: 'N² multiplications × 0.2 pJ', light: 'Light', lightHow: '2N signal conversions × 10 pJ',
     cross: 'N ≈ 100', today: 'Our chip today:  N = 49',
-    small: 'In the light, multiplying costs nothing: what costs energy is converting the N inputs and N outputs (DAC + modulator in, photodetector + ADC out), about 10 pJ each.',
   },
   ja: {
-    energy: '1回の計算に使うエネルギー', size: '計算の大きさ  N', what: '（N × N 行列とベクトルの掛け算）',
-    gpu: 'GPU', gpuHow: 'N² 回の掛け算 × 0.2 pJ', light: '光', lightHow: '2N 回の信号変換 × 10 pJ',
+    energy: '1回の行列の掛け算に使うエネルギー', size: '計算の大きさ  N', what: '（N × N 行列とベクトルの掛け算）',
+    gpu: 'GPU', gpuMake: 'NVIDIA B300', gpuHow: 'N² 回の掛け算 × 0.2 pJ', light: '光', lightHow: '2N 回の信号変換 × 10 pJ',
     cross: 'N ≈ 100', today: '現在のチップ：N = 49',
-    small: '光の中では掛け算にエネルギーはかかりません。かかるのは、N 個の入力と N 個の出力の信号変換（DA変換＋変調器、光検出器＋AD変換）で、1回あたり約 10 pJ です。',
   },
 };
 const E_TICKS = ['1 pJ', '10 pJ', '100 pJ', '1 nJ', '10 nJ', '100 nJ', '1 µJ'];
@@ -84,20 +83,9 @@ export function createEnergy(THREE, { lang = () => 'en', at = [0, 0, 0], w = 26,
     g.beginPath(); g.moveTo(X(0), Y(f(0))); g.lineTo(X(k), Y(f(k))); g.stroke();
     g.restore();
   };
-  // the small print, wrapped to the plot's width (Japanese wraps anywhere)
-  const wrap = (s, x, y, maxW, size, ja) => {
-    g.save(); g.font = `500 ${size}px ${FONT}`;
-    const parts = ja ? [...s] : s.split(' '), sep = ja ? '' : ' ', lines = [];
-    let cur = '';
-    for (const p of parts) { const tryS = cur ? cur + sep + p : p; if (g.measureText(tryS).width > maxW && cur) { lines.push(cur); cur = p; } else cur = tryS; }
-    if (cur) lines.push(cur);
-    g.restore();
-    lines.forEach((l, i) => text(g, l, x, y + i * size * 1.3, { size, rgb: MUTED, weight: 500 }));
-  };
-
   let drawnK = -1, drawnLang = '';
   const draw = k => {
-    const L = TEXT[lang()] || TEXT.en, ja = lang() === 'ja';
+    const L = TEXT[lang()] || TEXT.en;
     g.clearRect(0, 0, W, H);
     // the sheet: the plates' dark panel and edge
     g.save();
@@ -124,24 +112,26 @@ export function createEnergy(THREE, { lang = () => 'en', at = [0, 0, 0], w = 26,
     g.restore();
     text(g, L.size, BOX.x1, BOX.y1 + 150, { size: 62, rgb: [0.85, 0.89, 0.93], align: 'right', weight: 700 });
     text(g, L.what, BOX.x1, BOX.y1 + 214, { size: 46, rgb: MUTED, align: 'right', weight: 600 });
-    wrap(L.small, BOX.x0, BOX.y1 + 150, (BOX.x1 - BOX.x0) * 0.5, 36, ja);
     // the lines: the GPU's, then the light's
     const kg = Math.min(1, Math.max(0, k / 0.45)), kl = Math.min(1, Math.max(0, (k - 0.35) / 0.45)), kc = Math.min(1, Math.max(0, (k - 0.85) / 0.15));
     line(vGpu, kg, HOT);
     line(vLight, kl, LIGHT);
     // their words, along each line near its end, where the other line is not: the GPU's above its line, the light's
-    // under its line (right of where they cross, the GPU's line runs above the light's)
-    const along = (f, u, below, a, rgb, big, small) => {
+    // under its line (right of where they cross, the GPU's line runs above the light's); the GPU's make over its name
+    const along = (f, u, below, a, rgb, big, small, over = '') => {
       if (a <= 0) return;
       g.save();
       g.translate(X(u), Y(f(u)));
       g.rotate(Math.atan2(Y(f(1)) - Y(f(0)), X(1) - X(0)));
       const c = rgb.map(x => x * a);
       if (below) { text(g, big, 0, 96, { size: 84, rgb: c, align: 'right', weight: 800 }); text(g, small, 0, 158, { size: 50, rgb: c, align: 'right', weight: 600 }); }
-      else { text(g, big, 0, -100, { size: 84, rgb: c, align: 'right', weight: 800 }); text(g, small, 0, -36, { size: 50, rgb: c, align: 'right', weight: 600 }); }
+      else {
+        text(g, big, 0, -100, { size: 84, rgb: c, align: 'right', weight: 800 }); text(g, small, 0, -36, { size: 50, rgb: c, align: 'right', weight: 600 });
+        if (over) text(g, over, 0, -186, { size: 56, rgb: c, align: 'right', weight: 700 });
+      }
       g.restore();
     };
-    along(vGpu, 0.97, false, (kg - 0.8) / 0.2, HOT, L.gpu, L.gpuHow);
+    along(vGpu, 0.97, false, (kg - 0.8) / 0.2, HOT, L.gpu, L.gpuHow, L.gpuMake);
     along(vLight, 0.99, true, (kl - 0.8) / 0.2, LIGHT, L.light, L.lightHow);
     // where our chip works today: a dashed line at N = 49, from the size axis to near the top, named at its top
     if (kc > 0) {

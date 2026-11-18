@@ -55,6 +55,14 @@ button { font: inherit; color: inherit; }
 /* a chip in focus: its kind of job is in the caption; the tab's subtitle would only crowd its plates */
 body[data-focus]:not([data-focus=""]) #brand .sub { visibility: hidden; }
 #viewbtns { display: flex; gap: 6px; pointer-events: auto; flex-wrap: wrap; justify-content: flex-end; }
+/* the top bar's right column: the NTT Research logo (white, a little dimmed), and under it the view buttons; the
+   catalog and the panel start below it (--top).  The logo's words "NTT Research" are as wide as the catalog (they are
+   78 % of the image, the round mark the rest) and end at its right edge: the mark overhangs it on the left.  (The image
+   is 680 x 120) */
+#topright { display: flex; flex-direction: column; align-items: flex-end; gap: calc(10px * var(--s)); min-width: 0; }
+#logo { width: calc(var(--cat-w) / 0.7825); height: auto; margin-right: -2px; opacity: 0.85; pointer-events: none; user-select: none; }
+:root { --top: calc(24px + var(--cat-w) / 0.7825 * 120 / 680 + 60px * var(--s)); }
+@media (max-width: 600px) { #logo { width: auto; height: 26px; margin-right: 0; } #topright { gap: 6px; } }
 .vbtn { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 11px; cursor: pointer; font-size: calc(13px * var(--s)); }
 .vbtn:hover { border-color: var(--line-2); }
 .vbtn[aria-pressed="true"] { border-color: #2f5f7a; color: #d4efff; }
@@ -106,7 +114,7 @@ html[lang="ja"] .fwhat { max-width: 30em; }
 .legend:hover, .legend[aria-pressed="true"] { border-color: var(--cat); }
 
 /* ---------------------------------------------------------------- the panel about the chip in focus */
-#panel { position: absolute; z-index: 5; top: calc(76px * var(--s)); right: 16px; bottom: 16px; width: var(--panel-w);
+#panel { position: absolute; z-index: 5; top: var(--top); right: 16px; bottom: 16px; width: var(--panel-w);
   display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; backdrop-filter: blur(8px);
   box-shadow: 0 10px 40px rgba(0,0,0,0.45); transform: translateX(0); transition: transform 0.35s ease, opacity 0.35s ease; }
 #panel.closing { transform: translateX(30px); opacity: 0; }
@@ -149,8 +157,8 @@ html[lang="ja"] #panel h3 { letter-spacing: 0.02em; }
 .p-count { color: var(--muted); font-size: calc(13px * var(--s)); font-variant-numeric: tabular-nums; }
 
 /* ---------------------------------------------------------------- tabs 2-4: the catalog (right) */
-#catalog { position: absolute; z-index: 5; top: calc(76px * var(--s)); right: 16px; width: var(--cat-w);
-  max-height: calc(100% - 76px * var(--s) - 16px); overflow-y: auto; scrollbar-width: thin;
+#catalog { position: absolute; z-index: 5; top: var(--top); right: 16px; width: var(--cat-w);
+  max-height: calc(100% - var(--top) - 16px); overflow-y: auto; scrollbar-width: thin;
   background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 12px 10px; backdrop-filter: blur(8px); box-shadow: 0 10px 40px rgba(0,0,0,0.45); }
 #catalog h2 { margin: 0; font-size: calc(17px * var(--s)); font-weight: 700; display: flex; align-items: center; gap: 8px; }
 #catalog h2::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: #3fff6a; box-shadow: 0 0 10px #3fff6a; }
@@ -259,7 +267,7 @@ a.rdoi:hover { text-decoration: underline; }
   body[data-tab="apps"] .frow:has(> .row + .row) > #tourhint { display: none; }
   /* tab 4's cards: the whole width, above the pills; smaller codes (on a phone the link is the thing to tap); a
      paper's cover above its code, at the left of its text */
-  #refs { top: 70px; left: 8px; right: 8px; bottom: 64px; }   /* (below the top bar, whose buttons take two rows) */
+  #refs { top: 108px; left: 8px; right: 8px; bottom: 64px; }   /* (below the top bar: the logo, and buttons in two rows) */
   .refcard, .refcard.press { --qr: 80px; padding: 12px; }
   .refcard.exhibit { --qr: 136px; }
   .ref.site { gap: 12px; padding: 12px; }
@@ -314,7 +322,7 @@ html.kiosk #story { width: min(820px, 52vw); }
   :root { --panel-w: min(360px, 46vw); }
   #story { width: calc(100vw - 36px); }
   #brand .sub { display: none; }
-  #panel { top: calc(64px * var(--s)); }
+  #panel { top: calc(var(--top) - 12px * var(--s)); }
 }
 @media (max-width: 600px) {
   #stage { font-size: 13px; }

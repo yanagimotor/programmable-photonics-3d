@@ -23,7 +23,7 @@ Four tabs along the bottom (keys 1-4):
    The light router, image recognition and spectrometer show recorded simulations made with the 2D Waveguide
    Studio, a waveguide simulator: patterns found by inverse design (4 x 4 routings; an MNIST digit classifier; a
    wavelength splitter for 1310, 1410, 1510 and 1610 nm) and the light computed through them.
-3. **Potential applications** - optical computation (ending on a graph of the energy per calculation: a GPU's
+3. **Potential applications** - optical computation (ending on a graph of the energy per calculation: a GPU's (NVIDIA B300)
    0.2 pJ x N^2 against the light's 10 pJ x 2N for converting its N inputs and N outputs, with the hot GPU and the
    chip standing on it); in situ inverse design and error correction (the chip learns its
    own design, then keeps it working when heat or cold disturbs it); quantum internet.
@@ -72,6 +72,8 @@ The site is the `docs/` folder, published by GitHub Pages (Settings -> Pages -> 
 
 - `docs/index.html`, `docs/css/`, `docs/js-<version>/` - the page (plain JavaScript modules, no build step; the
   script folder's name changes with each update so browsers never mix versions)
+- `docs/img/ntt-research-logo.png` - the NTT Research logo (white), at the top right of every tab, above the view
+  buttons; cropped from `NTTResearch_A1_white2025.png` and scaled to 120 px tall
 - `docs/vendor/three-0.186.1/` - three.js r186 (MIT licence), minified, copied so the page works offline
 - `docs/js-<version>/programs/data/mnist28.js` and the samples in `image.js` - 30 handwritten digits of the MNIST
   test set (Y. LeCun, C. Cortes and C. J. C. Burges, http://yann.lecun.com/exdb/mnist/), as they are and averaged

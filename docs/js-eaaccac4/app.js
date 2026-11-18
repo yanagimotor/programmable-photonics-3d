@@ -707,7 +707,7 @@ export class App {
     const st = $('#stage').getBoundingClientRect();
     const rel = r => ({ left: r.left - st.left, right: r.right - st.left, top: r.top - st.top, bottom: r.bottom - st.top });
     const rects = [];
-    for (const s of ['#brand', '#viewbtns', '#story']) { const e = $(s); if (e && e.offsetParent !== null) rects.push(rel(e.getBoundingClientRect())); }
+    for (const s of ['#brand', '#topright', '#story']) { const e = $(s); if (e && e.offsetParent !== null) rects.push(rel(e.getBoundingClientRect())); }
     for (const s of ['#panel', '#catalog']) { const p = $(s); if (!p.hidden) rects.push(rel(p.getBoundingClientRect())); }
     this.table.setBlockers(rects);
     // the free part of the view ends above the story; on tabs 2 and 3 two lines of caption and a row of buttons are
