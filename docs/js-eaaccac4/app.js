@@ -21,6 +21,9 @@
 // default), plays the steps by itself instead (the tour) and leads on from tab to tab; a step by hand turns it off.
 // The kiosk still falls back to its own loop after IDLE_S seconds without input.
 //
+// Keys: Tab / Shift+Tab the next / previous tab; up and down the list on the right (chips, programs, applications, tab
+// 4's parts); left and right Back and Next (the steps of an application's story or of how it works); 1-4 a tab; Esc
+// back to the table (tab 1); T auto-play, L labels, R reset the view.
 // URL parameters: tab=prog|apps|how (open on tab 2, 3 or 4; tab=refs|press|exhibit: tab 4's cards), lang=ja|en, kiosk=1 (a screen left running on its own: Japanese unless lang=en, larger text, idle reset and tour), dev=<id> (open with
 // that chip in focus), only=<id,id> (load only these chips - for development), tour=1 (auto-play on), labels=0,
 // quality=low, motion=reduce|full, scale=<ui scale>, panel=1 (the detailed panel), debug (show the error log);
@@ -679,7 +682,11 @@ export class App {
     this.touch();
     const k = (e.key || '').toLowerCase();
     if ((k === ' ' || k === 'enter') && tag === 'BUTTON') return;
+    // Tab (Shift+Tab): the next (the previous) of the four tabs, round - not the browser's focus from button to button
+    if (k === 'tab') { e.preventDefault(); const n = TABS.length, i = TABS.findIndex(x => x.id === this.tab); this.pickTab(TABS[(i + (e.shiftKey ? -1 : 1) + n) % n].id); return; }
     if (k === 'escape') { this.stopTour(); if (this.tab === 'conv') this.overview(); }
+    else if (k === 'arrowdown') { this.stopTour(); this.stepItem(1); e.preventDefault(); }
+    else if (k === 'arrowup') { this.stopTour(); this.stepItem(-1); e.preventDefault(); }
     else if (k === 'arrowright') { this.stopTour(); this.stepBy(1); e.preventDefault(); }
     else if (k === 'arrowleft') { this.stopTour(); this.stepBy(-1); e.preventDefault(); }
     else if (['1', '2', '3', '4'].includes(k)) this.pickTab(TABS[+k - 1].id);
@@ -687,7 +694,15 @@ export class App {
     else if (k === 'r' && !e.repeat) this.table.applyFit(false);
     else if (k === 't' && !e.repeat) { if (this.tour) this.stopTour(); else this.startTour(); }
   }
-  // the arrow keys: Back (d = -1) and Next (d = 1) of the tab shown, as its buttons (tab 2's wrap round the catalog;
+  // up and down: the list on the right (d = 1: the next one down, round) - tab 1's chips, tab 2's programs ("No
+  // program" included), tab 3's applications, tab 4's four parts
+  stepItem(d) {
+    if (this.tab === 'conv') { this.step(d); return; }
+    if (this.tab === 'prog' || this.tab === 'apps') { this.stepProgram(d); return; }
+    const ids = DETAILS.map(x => x.id), n = ids.length;
+    this.setDetail(ids[(ids.indexOf(this.detail) + d + n) % n]);
+  }
+  // left and right: Back (d = -1) and Next (d = 1) of the tab shown, as its buttons (tab 2's wrap round the catalog;
   // tab 3's Next at a story's last part opens the next application)
   stepBy(d) {
     if (this.tab === 'conv') { this.step(d); return; }
