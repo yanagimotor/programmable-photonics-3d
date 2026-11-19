@@ -64,7 +64,8 @@ URL options: `?lang=ja`; `?kiosk=1` (kiosk mode); `?tab=prog`; `?tab=apps&app=in
 motion, as over remote desktop) or `?motion=reduce`.
 Keys: Tab / Shift+Tab the next / previous tab (1-4 a tab directly); up/down arrows the list on the right (tab 1's
 chips, tab 2's programs, tab 3's applications, tab 4's parts); left/right arrows Back/Next (the steps of an
-application's story or of how it works; on tabs 1 and 2 the next chip or program); Esc back to the table from a chip
+application's story or of how it works; on tab 1 the next chip; on tab 2 the program's input - the next MNIST digit,
+vowel, light source, routing or colour - while Back (↑) and Next (↓) there are the up/down arrows); Esc back to the table from a chip
 (tab 1), T auto-play, L labels, R reset the view.
 
 ## Publish with GitHub Pages

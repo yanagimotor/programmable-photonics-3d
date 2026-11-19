@@ -163,9 +163,10 @@ export class App {
     document.body.dataset.tab = tab;
     this.layout();                       // (the catalog and the story's place first: the camera is fitted to them)
     this.table.setTab(tab, { instant });
-    // stepping by hand, tab 2 opens on the blank chip and waits for Next (bench.enter() asks for the first program,
+    // stepping by hand, tab 2 opens on "No program" - the input beam spreading out in the blank chip - and waits for
+    // Next (bench.enter() asks for the first program,
     // which the light would write by itself); auto-play asks for its program at once
-    if (tab === 'prog' && !this.tour) this.table.bench.load(null);
+    if (tab === 'prog' && !this.tour) this.table.bench.load(null, { bare: true });
     this.detail = 'how';                 // (tab 4 opens on how it works, at its first step: table.setTab -> how.enter())
     this.syncModes();
     this.refreshTexts();
@@ -498,9 +499,11 @@ export class App {
     if (this.legendRow) ctl.append(this.legendRow);
   }
   // Back (‹) and Next: one step on the tab shown; a step by hand ends auto-play
-  addStepButtons(row, { back, next, first = false, nextLabel = t('btn.next') + ' ›' }) {
+  // (vertical: tab 2, where Back and Next are the up and down arrow keys - the list on the right - and left and right
+  // change the program's input: its arrows point up and down)
+  addStepButtons(row, { back, next, first = false, vertical = false, nextLabel = t('btn.next') + (vertical ? ' ↓' : ' ›') }) {
     const go = f => () => { this.touch(); this.stopTour(); f(); this.renderStory(); };
-    const b = el('button', 'navbtn prev', '‹'); b.type = 'button'; b.id = 'btn-back';
+    const b = el('button', 'navbtn prev', vertical ? '↑' : '‹'); b.type = 'button'; b.id = 'btn-back';
     b.title = t('btn.prev'); b.setAttribute('aria-label', t('btn.prev'));
     b.disabled = first;
     b.addEventListener('click', go(back));
@@ -533,7 +536,7 @@ export class App {
     note.textContent = '';
     // one row: Back and Next first (they stay in one place from program to program), then the program's controls
     const row = el('div', 'frow nav');
-    this.addStepButtons(row, { back: () => this.stepProgram(-1), next: () => this.stepProgram(1), first: !bench.selected });
+    this.addStepButtons(row, { back: () => this.stepProgram(-1), next: () => this.stepProgram(1), first: !bench.selected, vertical: true });
     // the input light on or off (the circuit stays written; no light runs through it when off)
     const inp = el('button', 'cbtn'); inp.type = 'button'; inp.id = 'btn-input';
     const syncIn = () => { inp.textContent = t(bench.inputOn ? 'btn.input.on' : 'btn.input.off'); inp.setAttribute('aria-pressed', String(bench.inputOn)); };
@@ -708,15 +711,38 @@ export class App {
     const ids = DETAILS.map(x => x.id), n = ids.length;
     this.setDetail(ids[(ids.indexOf(this.detail) + d + n) % n]);
   }
-  // left and right: Back (d = -1) and Next (d = 1) of the tab shown, as its buttons (tab 2's wrap round the catalog;
+  // left and right: Back (d = -1) and Next (d = 1) of the tab shown, as its buttons (tab 2: the program's input instead -
+  // stepInput - its Back and Next being up and down;
   // tab 3's Next at a story's last part opens the next application)
   stepBy(d) {
     if (this.tab === 'conv') { this.step(d); return; }
-    if (this.tab === 'prog') { this.stepProgram(d); return; }
+    if (this.tab === 'prog') { this.stepInput(d); return; }
     if (this.tab === 'apps') { const a = this.table.apps; if (d > 0 && !a.next()) this.stepProgram(1); else if (d < 0) a.prev(); }
     else if (CARDS.includes(this.detail)) return;          // (tab 4's cards: nothing to step through)
     else if (d > 0) this.table.how.next(); else this.table.how.prev();
     this.renderStory();
+  }
+
+  // tab 2's left and right: the running program's input, as its buttons would - the next (d = 1) or previous digit,
+  // vowel or light source (its first choice, round), new routes (a button), the next colour (toggles: one at a time)
+  stepInput(d) {
+    const bench = this.table.bench, prog = bench.current;
+    if (!prog || bench.phase !== 'run') return;
+    const ctrls = (prog.inst && prog.inst.controls) || [];
+    const call = (fn, ...a) => bench.call(prog, fn, ...a);
+    const ch = ctrls.find(c => c.type === 'choice' && c.options && c.options.length);
+    const btn = ctrls.find(c => c.type === 'button');
+    const tg = ctrls.filter(c => c.type === 'toggle');
+    if (ch) {
+      const o = ch.options, n = o.length, i = o.indexOf(call('value', ch.id));
+      call('act', ch.id, o[((i < 0 ? (d > 0 ? -1 : 0) : i) + d + n) % n]);
+    } else if (btn) call('act', btn.id);
+    else if (tg.length) {
+      const n = tg.length, i = tg.findIndex(c => call('value', c.id)), j = ((i < 0 ? 0 : i) + d + n) % n;
+      call('act', tg[j].id, true);
+      for (const c of tg) if (c !== tg[j] && call('value', c.id)) call('act', c.id, false);
+    } else return;
+    this.syncControls(); this.statusAcc = 1;
   }
 
   layout() {

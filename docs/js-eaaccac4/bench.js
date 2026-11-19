@@ -152,7 +152,7 @@ void main() {
 // to guide it - a Gaussian beam diffracting from its waist at the input facet, w(x) = W0 sqrt(1 + (x / ZR)^2), its
 // pulses on wavefronts curved around the waist.  (The single-waveguide program keeps the same beam in one line.)
 // The diffraction is exaggerated so it shows within the chip.
-const SPREAD = { x0: -5.55, x1: 5.55, y: 0.085, beam: 2.4, w0: 0.09, zr: 0.55, flow: 1.6, dash: 0.9 };
+const SPREAD = { y: 0.085, beam: 2.4, w0: 0.09, zr: 0.55, flow: 1.6, dash: 0.9 };
 const SPREAD_FS = /* glsl */ `
 uniform float uLevel, uTime, uX0, uW0, uZr, uHalf;
 uniform vec3 uColor;
@@ -210,18 +210,19 @@ export class Bench {
   }
   // tab 2's "No program": the beam that spreads out in the blank chip (see SPREAD)
   buildSpread() {
-    const S = this.S, half = S.d / 2 - 0.05;
+    // (from facet to facet of the slate: with nothing written, the light crosses the whole chip)
+    const S = this.S, half = S.d / 2 - 0.05, x0 = -S.w / 2, x1 = S.w / 2;
     this.spreadU = {
-      uLevel: { value: 0 }, uTime: { value: 0 }, uX0: { value: SPREAD.x0 }, uW0: { value: SPREAD.w0 }, uZr: { value: SPREAD.zr },
+      uLevel: { value: 0 }, uTime: { value: 0 }, uX0: { value: x0 }, uW0: { value: SPREAD.w0 }, uZr: { value: SPREAD.zr },
       uHalf: { value: half }, uColor: { value: new THREE.Color(...lin(IR)) },
     };
-    const geo = new THREE.PlaneGeometry(SPREAD.x1 - SPREAD.x0, 2 * half).rotateX(-Math.PI / 2).translate((SPREAD.x0 + SPREAD.x1) / 2, 0, 0);
+    const geo = new THREE.PlaneGeometry(x1 - x0, 2 * half).rotateX(-Math.PI / 2).translate((x0 + x1) / 2, 0, 0);
     const mesh = this.spreadMesh = new THREE.Mesh(geo, new THREE.ShaderMaterial({ uniforms: this.spreadU, vertexShader: SPREAD_VS, fragmentShader: SPREAD_FS, transparent: true, depthWrite: false }));
     mesh.position.y = 0.02;
     mesh.renderOrder = 5;
     mesh.visible = false;
     this.chipGroup.add(mesh);
-    this.spreadBeam = new Beam({ from: [SPREAD.x0 - SPREAD.beam, SPREAD.y, 0], to: [SPREAD.x0, SPREAD.y, 0], rgb: IR, power: 1.1, r0: 0.08, fade: 'in' });
+    this.spreadBeam = new Beam({ from: [x0 - SPREAD.beam, SPREAD.y, 0], to: [x0, SPREAD.y, 0], rgb: IR, power: 1.1, r0: 0.08, fade: 'in' });
     this.spreadBeam.object.visible = false;
     this.chipGroup.add(this.spreadBeam.object);
     this.spread = 0;
