@@ -110,7 +110,7 @@ const EN = {
   'how.s7': 'Change the pattern of light, and the circuit changes with it. Nothing is etched.',
   'how.electrode': 'Transparent electrodes', 'how.pc': 'Photoconductor', 'how.wg': 'Optical waveguide', 'how.sub': 'Substrate',
   'how.volt': 'Voltage source', 'how.proj': 'Projector',
-  'btn.prev': 'Back', 'btn.next': 'Next', 'btn.again': 'From the start', 'how.step': 'Step {i} of {n}',
+  'btn.prev': 'Back', 'btn.next': 'Next', 'btn.input.on': 'Light in: on', 'btn.input.off': 'Light in: off', 'btn.again': 'From the start', 'how.step': 'Step {i} of {n}',
   'note.prog': 'Shown in the lab: routing light and separating colours (Zhao et al. 2026), AI (Onodera et al. 2026), frequency doubling (Yanagimoto et al., Nature 2026); photon pairs proposed. On the real chips a program is a free-form pattern found by optimisation; here each is drawn as the circuit it replaces.',
 };
 const JA = {
@@ -217,7 +217,7 @@ const JA = {
   'how.s7': '光のパターンを変えれば、回路も変わります。<br>何も削っていません。',
   'how.electrode': '透明電極', 'how.pc': '光導電体', 'how.wg': '光導波路', 'how.sub': '基板',
   'how.volt': '電源', 'how.proj': 'プロジェクター',
-  'btn.prev': '戻る', 'btn.next': '次へ', 'btn.again': '最初から', 'how.step': 'ステップ' + NB + '{i}' + NB + '/' + NB + '{n}',
+  'btn.prev': '戻る', 'btn.next': '次へ', 'btn.input.on': '入力光：オン', 'btn.input.off': '入力光：オフ', 'btn.again': '最初から', 'how.step': 'ステップ' + NB + '{i}' + NB + '/' + NB + '{n}',
   'note.prog': '実験で実証：光の経路の切り替えと色の分離（Zhao ほか 2026）、AI（Onodera ほか 2026）、周波数の倍増（Yanagimoto ほか、Nature 2026）。光子対は提案段階。実際のチップのプログラムは最適化で見つけた自由な形のパターンで、ここでは置き換える回路の形で描いています。',
 };
 

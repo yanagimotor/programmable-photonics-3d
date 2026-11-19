@@ -198,6 +198,8 @@ export class Bench {
     this.pattern = 0;               // brightness of the circuit on the chip
     this.task = 0;                  // the chip's own light (0..1)
     this.time = 0;
+    this.inputOn = true;            // the light going into the chip (off: the circuit stays written, no light runs through it)
+    this.inLevel = 1;
     this.labels = {};
     this._stage = { chip: 1, projector: 1, solid: 1, shade: 1, glow: 1 };
     this.buildSlate();
@@ -536,25 +538,27 @@ export class Bench {
     this.slateTop.emissive.setRGB(0.05 * h * h, 0.09 * h * h, 0.07 * h * h).multiplyScalar(hOn ? 1 : 0);
     this.coneMesh.visible = this.cone > 0.01;
     this.labels.program.obj.visible = this.cone > 0.4 && !this.labelsHidden;
+    // the input light (tab 2's "Light in" button): fades the chip's own light - the beams in and out and the light inside
+    this.inLevel += ((this.inputOn ? 1 : 0) - this.inLevel) * Math.min(1, raw * 6);
     this.labels.chip.obj.visible = !this.labelsHidden;
     if (this.spreadU) {
       // "No program" chosen and the chip blank again: the beam comes in and spreads out
       const on = this.phase === 'blank' && !this.want && !this.current && (this.erased || this.bare) ? 1 : 0;
       this.spread += (on - this.spread) * Math.min(1, raw * (on ? 2 : 6));
       const s = this.spread, vis = s > 0.01;
-      this.spreadU.uLevel.value = s;
+      this.spreadU.uLevel.value = s * this.inLevel;
       this.spreadU.uTime.value = this.reduced ? 0 : this.time;
       this.spreadMesh.visible = vis;
       this.spreadBeam.object.visible = vis;
-      this.spreadBeam.tick(this.reduced ? 0 : this.time, s);
-      this.labels.spread.obj.visible = s > 0.6 && !this.labelsHidden;
+      this.spreadBeam.tick(this.reduced ? 0 : this.time, s * this.inLevel);
+      this.labels.spread.obj.visible = s > 0.6 && this.inLevel > 0.5 && !this.labelsHidden;
     }
     if (this.words) this.labels.chip.el.querySelector('span').textContent = this.words(this.chipKey());
     const prog = this.current;
     if (prog) {
       const running = this.task > 0.001 || this.phase === 'run';
       if (running) this.call(prog, 'update', dt, t, true);
-      prog.kit._tick(dt, t, { dim: this.task, plateRate: 2, camera, pointScale, platesOn: this.task > 0.6 });
+      prog.kit._tick(dt, t, { dim: this.task * this.inLevel, plateRate: 2, camera, pointScale, platesOn: this.task > 0.6 });
     }
   }
 

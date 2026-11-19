@@ -534,6 +534,12 @@ export class App {
     // one row: Back and Next first (they stay in one place from program to program), then the program's controls
     const row = el('div', 'frow nav');
     this.addStepButtons(row, { back: () => this.stepProgram(-1), next: () => this.stepProgram(1), first: !bench.selected });
+    // the input light on or off (the circuit stays written; no light runs through it when off)
+    const inp = el('button', 'cbtn'); inp.type = 'button'; inp.id = 'btn-input';
+    const syncIn = () => { inp.textContent = t(bench.inputOn ? 'btn.input.on' : 'btn.input.off'); inp.setAttribute('aria-pressed', String(bench.inputOn)); };
+    syncIn();
+    inp.addEventListener('click', () => { this.touch(); bench.inputOn = !bench.inputOn; syncIn(); });
+    row.append(inp);
     if (prog && st === 'run') this.buildControls(prog, T, row, true);
     if (this.tour) this.addTourHint(row);
     ctl.append(row);
