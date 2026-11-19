@@ -9,7 +9,7 @@
 // compute (the light computer) was tab 3's, then tab 2's sixth program; no catalog lists it any more (app.js) - it
 // is still loaded and checked (dev/devcheck); wdm and qsource are tab 3's (apps/); image and voice take options for
 // another look (tab 3's optical computation: programs/image.js)
-export const PROGRAMS = ['router', 'image', 'voice', 'awg', 'shg', 'compute', 'wdm', 'qsource'];
+export const PROGRAMS = ['waveguide', 'ysplit', 'router', 'image', 'voice', 'awg', 'shg', 'compute', 'wdm', 'qsource'];
 
 // { id: module } for the programs that loaded; errors are reported, not thrown (the catalog then leaves them out)
 export async function loadPrograms(onError = () => {}) {

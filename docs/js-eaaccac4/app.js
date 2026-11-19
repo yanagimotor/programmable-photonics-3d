@@ -62,7 +62,7 @@ const TABS = [
 // The quantum light source is not in the catalog (it stays on tab 1 and in tab 3's quantum internet).
 // The light computer (programs/compute.js) is not on the page: its file stays (unused; dev/devcheck still checks it).
 // Tab 3 tells optical computation as a story of its own.
-const CATALOG = ['router', 'image', 'voice', 'awg', 'shg'].map(id => ({ id }));
+const CATALOG = ['waveguide', 'ysplit', 'router', 'image', 'voice', 'awg', 'shg'].map(id => ({ id }));
 const TOUR_DWELL_PROG = +params.get('dwell') || 13;   // seconds per program on the tour
 const TOUR_DWELL_APPS = +params.get('dwell') || 0;    // seconds per application on the tour (0: each its own, APPS)
 // seconds on one item of the tour: its own, else an application's whole story (its zoom-outs too), a program, a chip
@@ -198,7 +198,7 @@ export class App {
       ? APPS.map(a => ({ id: a.id, name: t('app.' + a.id), sub: t('app.' + a.id + '.sub'), cls: 'prog app', cat: 'compute', go: () => this.table.apps.load(a.id) }))
       : this.tab === 'how'
       ? DETAILS.map(d => ({ id: d.id, name: t('more.' + d.id), sub: t('more.' + d.id + '.sub'), cls: 'prog app', color: d.color, go: () => this.setDetail(d.id) }))
-      : [{ id: null }, ...this.catalog].map(c => ({ id: c.id, name: c.id ? this.textOf(c).name || c.id : t('cat.none'), cls: c.id ? 'prog' : 'prog none', cat: c.id && c.mod.meta.category, go: () => this.table.bench.load(c.id) }));
+      : [{ id: null }, ...this.catalog].map(c => ({ id: c.id, name: c.id ? this.textOf(c).name || c.id : t('cat.none'), cls: c.id ? 'prog' : 'prog none', cat: c.id && c.mod.meta.category, go: () => this.table.bench.load(c.id, { bare: true }) }));
     for (const c of items) {
       const b = el('button', c.cls, '<i></i><span class="pname"></span>'); b.type = 'button';
       b.dataset.id = c.id || '';
@@ -213,7 +213,7 @@ export class App {
   }
   syncCatalog() {
     // (tab 2 opens on the blank chip: nothing is pressed until the first program is being written)
-    const bench = this.table.bench, opening = bench.phase === 'blank' && !bench.current && !bench.erased;
+    const bench = this.table.bench, opening = bench.phase === 'blank' && !bench.current && !bench.erased && !bench.bare;
     const sel = this.tab === 'apps' ? this.table.apps.selected || '' : this.tab === 'how' ? this.detail : opening ? null : bench.selected || '';
     let on = null;
     for (const b of document.querySelectorAll('#catalog .prog')) { const p = b.dataset.id === sel; b.setAttribute('aria-pressed', String(p)); if (p) on = b; }
@@ -233,7 +233,7 @@ export class App {
       this.table.apps.load(ids[(ids.indexOf(this.table.apps.selected) + d + n) % n]);
     } else {
       const ids = [null, ...this.catalog.map(c => c.id)], n = ids.length;
-      this.table.bench.load(ids[(ids.indexOf(this.table.bench.selected) + d + n) % n]);
+      this.table.bench.load(ids[(ids.indexOf(this.table.bench.selected) + d + n) % n], { bare: true });
     }
     this.syncCatalog();
     this.renderStory();
@@ -516,7 +516,7 @@ export class App {
   progState() {
     const b = this.table.bench, p = b.current;
     const st = b.phase === 'run' ? 'run'
-      : !b.selected ? (b.erased || p ? 'none' : 'blank')
+      : !b.selected ? (b.erased || p || b.bare ? 'none' : 'blank')
       : b.phase === 'blank' && !b.erased ? 'blank' : 'write';
     return `${st}|${p ? p.id : ''}|${getLang()}|${this.tour ? 1 : 0}`;
   }

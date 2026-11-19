@@ -18,7 +18,9 @@ Four tabs along the bottom (keys 1-4):
    converter, ring colour converter, quantum light source, light ruler, microwave light ruler, white-light
    source). Click a chip to zoom in; its buttons appear at the bottom left.
 2. **This work: Programmable photonics** - one blank chip under a projector. The projector's green light writes a
-   circuit into the chip, its "program", and the chip runs it. Five programs: light router, image recognition,
+   circuit into the chip, its "program", and the chip runs it. "No program" shows an infrared beam spreading out in
+   the blank chip (nothing guides it). Seven programs: single waveguide (one line of green light that keeps the same beam
+   confined), Y-splitter (the line forks, half the light in each arm), light router, image recognition,
    voice recognition, spectrometer, colour converter; Next has the light rewrite the same chip with the next one.
    The light router, image recognition and spectrometer show recorded simulations made with the 2D Waveguide
    Studio, a waveguide simulator: patterns found by inverse design (4 x 4 routings; an MNIST digit classifier; a

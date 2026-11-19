@@ -38,7 +38,8 @@
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { makeKit, MASK_LAYER } from './kit/index.js';
-import { lin } from './kit/colour.js';
+import { lin, IR } from './kit/colour.js';
+import { Beam } from './kit/light.js';
 
 export const SLATE = { w: 12.6, d: 8.2, h: 0.55 };
 const PROJ = { y: 10.6, lensY: 9.4, a: 0.9 };           // projector body height, lens height, lens half-size
@@ -147,6 +148,37 @@ void main() {
   #include <colorspace_fragment>
 }`;
 
+// "No program" (tab 2): the infrared beam that the programs take in, entering the blank chip with nothing written
+// to guide it - a Gaussian beam diffracting from its waist at the input facet, w(x) = W0 sqrt(1 + (x / ZR)^2), its
+// pulses on wavefronts curved around the waist.  (The single-waveguide program keeps the same beam in one line.)
+// The diffraction is exaggerated so it shows within the chip.
+const SPREAD = { x0: -5.55, x1: 5.55, y: 0.085, beam: 2.4, w0: 0.09, zr: 0.55, flow: 1.6, dash: 0.9 };
+const SPREAD_FS = /* glsl */ `
+uniform float uLevel, uTime, uX0, uW0, uZr, uHalf;
+uniform vec3 uColor;
+varying vec2 vUv;
+varying vec3 vP;
+void main() {
+  float dx = max(vP.x - uX0, 0.0), z = vP.z;
+  float w = uW0 * sqrt(1.0 + dx * dx / (uZr * uZr));
+  float I = pow(uW0 / w, 0.55) * exp(-2.0 * z * z / (w * w));
+  I *= smoothstep(uHalf, uHalf - 0.25, abs(z));
+  float r = sqrt(dx * dx + z * z);
+  float ph = fract((r + ${SPREAD.beam.toFixed(2)} - uTime * ${SPREAD.flow.toFixed(2)}) / ${SPREAD.dash.toFixed(2)});
+  float pulse = 0.4 + 0.6 * pow(0.5 + 0.5 * cos(6.2831853 * ph), 1.5);
+  vec3 col = uColor * I * pulse * uLevel * 1.9;
+  float m = max(max(col.r, col.g), col.b);
+  if (m < 0.004) discard;
+  float al = clamp(m * 2.4, 0.0, 1.0);
+  gl_FragColor = vec4(col / max(al, 0.04), al);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}`;
+const SPREAD_VS = /* glsl */ `
+varying vec2 vUv;
+varying vec3 vP;
+void main() { vUv = uv; vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
+
 export class Bench {
   constructor({ renderer, scene, lang, reduced = false, quality = 'high', catalog = [], chipLabel = null, slate = null }) {
     this.renderer = renderer; this.scene = scene; this.lang = lang; this.reduced = reduced;
@@ -172,6 +204,33 @@ export class Bench {
     this.buildMask();
     this.buildProjector(quality);
     this.buildLabels();
+    if (!chipLabel) this.buildSpread();
+  }
+  // tab 2's "No program": the beam that spreads out in the blank chip (see SPREAD)
+  buildSpread() {
+    const S = this.S, half = S.d / 2 - 0.05;
+    this.spreadU = {
+      uLevel: { value: 0 }, uTime: { value: 0 }, uX0: { value: SPREAD.x0 }, uW0: { value: SPREAD.w0 }, uZr: { value: SPREAD.zr },
+      uHalf: { value: half }, uColor: { value: new THREE.Color(...lin(IR)) },
+    };
+    const geo = new THREE.PlaneGeometry(SPREAD.x1 - SPREAD.x0, 2 * half).rotateX(-Math.PI / 2).translate((SPREAD.x0 + SPREAD.x1) / 2, 0, 0);
+    const mesh = this.spreadMesh = new THREE.Mesh(geo, new THREE.ShaderMaterial({ uniforms: this.spreadU, vertexShader: SPREAD_VS, fragmentShader: SPREAD_FS, transparent: true, depthWrite: false }));
+    mesh.position.y = 0.02;
+    mesh.renderOrder = 5;
+    mesh.visible = false;
+    this.chipGroup.add(mesh);
+    this.spreadBeam = new Beam({ from: [SPREAD.x0 - SPREAD.beam, SPREAD.y, 0], to: [SPREAD.x0, SPREAD.y, 0], rgb: IR, power: 1.1, r0: 0.08, fade: 'in' });
+    this.spreadBeam.object.visible = false;
+    this.chipGroup.add(this.spreadBeam.object);
+    this.spread = 0;
+    const el = document.createElement('div');
+    el.className = 'callout';
+    el.innerHTML = '<span></span>';
+    const obj = new CSS2DObject(el);
+    obj.position.set(2.2, 0.1, -1.6);
+    obj.visible = false;
+    this.group.add(obj);
+    this.labels.spread = { obj, el };
   }
 
   // ------------------------------------------------------------------ construction
@@ -332,6 +391,7 @@ export class Bench {
     this.words = words;
     this.labels.program.el.querySelector('span').textContent = words('lbl.program');
     this.labels.chip.el.querySelector('span').textContent = words(this.chipKey());
+    if (this.labels.spread) this.labels.spread.el.querySelector('span').textContent = words('lbl.spread');
     for (const p of this.programs.values()) p.kit._redrawPlates();
   }
   chipKey() { return this.chipLabel || (this.phase === 'run' || this.phase === 'write' ? 'lbl.written' : 'lbl.blank'); }
@@ -385,6 +445,7 @@ export class Bench {
     this.current = null;
     this.want = this.catalog.length ? this.catalog[0].id : null;
     this.erased = false;
+    this.bare = false;           // ("No program" chosen: the beam spreads out in the blank chip)
     this.phase = 'blank'; this.pt = 0;
     this.cone = 0; this.pattern = 0; this.task = 0;
   }
@@ -395,7 +456,8 @@ export class Bench {
   }
   // ask for a program: the chip switches to it (light off, new pattern, circuit, task); null: no program (light off,
   // the circuit fades, the chip is blank again); null with now: blank at once (tab 3's story starting over)
-  load(id, { now = false } = {}) {
+  load(id, { now = false, bare = false } = {}) {
+    this.bare = id == null && (bare || (this.bare && !now));
     if (id == null && now) {
       this.clear();
       this.phase = 'blank'; this.pt = 0;
@@ -475,6 +537,18 @@ export class Bench {
     this.coneMesh.visible = this.cone > 0.01;
     this.labels.program.obj.visible = this.cone > 0.4 && !this.labelsHidden;
     this.labels.chip.obj.visible = !this.labelsHidden;
+    if (this.spreadU) {
+      // "No program" chosen and the chip blank again: the beam comes in and spreads out
+      const on = this.phase === 'blank' && !this.want && !this.current && (this.erased || this.bare) ? 1 : 0;
+      this.spread += (on - this.spread) * Math.min(1, raw * (on ? 2 : 6));
+      const s = this.spread, vis = s > 0.01;
+      this.spreadU.uLevel.value = s;
+      this.spreadU.uTime.value = this.reduced ? 0 : this.time;
+      this.spreadMesh.visible = vis;
+      this.spreadBeam.object.visible = vis;
+      this.spreadBeam.tick(this.reduced ? 0 : this.time, s);
+      this.labels.spread.obj.visible = s > 0.6 && !this.labelsHidden;
+    }
     if (this.words) this.labels.chip.el.querySelector('span').textContent = this.words(this.chipKey());
     const prog = this.current;
     if (prog) {
